@@ -1,0 +1,20 @@
+INFO: [HLS 200-10] Running 'C:/opt/Xilinx/Vivado/2019.2/bin/unwrapped/win64.o/vivado_hls.exe'
+INFO: [HLS 200-10] For user 'andre' on host 'iudex-dell' (Windows NT_amd64 version 6.2) on Thu Jul 08 17:56:16 +0100 2021
+INFO: [HLS 200-10] In directory 'D:/andre/Documents/tese/projeto/hardware'
+Sourcing Tcl script 'D:/andre/Documents/tese/projeto/hardware/macc.HLS/solution/export.tcl'
+INFO: [HLS 200-10] Opening project 'D:/andre/Documents/tese/projeto/hardware/macc.HLS'.
+INFO: [HLS 200-10] Opening solution 'D:/andre/Documents/tese/projeto/hardware/macc.HLS/solution'.
+INFO: [SYN 201-201] Setting up clock 'default' with a period of 10ns.
+INFO: [HLS 200-10] Setting target device to 'xc7z010-clg400-1'
+INFO: [IMPL 213-8] Exporting RTL as a Vivado IP.
+
+****** Vivado v2019.2 (64-bit)
+  **** SW Build 2708876 on Wed Nov  6 21:40:23 MST 2019
+  **** IP Build 2700528 on Thu Nov  7 00:09:20 MST 2019
+    ** Copyright 1986-2019 Xilinx, Inc. All Rights Reserved.
+
+source run_ippack.tcl -notrace
+INFO: [IP_Flow 19-234] Refreshing IP repositories
+INFO: [IP_Flow 19-1704] No user IP repositories specified
+INFO: [IP_Flow 19-2313] Loaded Vivado IP repository 'C:/opt/Xilinx/Vivado/2019.2/data/ip'.
+INFO: [Common 17-206] Exiting Vivado at Thu Jul  8 17:56:35 2021...

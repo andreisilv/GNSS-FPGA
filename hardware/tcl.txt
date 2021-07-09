@@ -1,0 +1,1 @@
+create_project macc D:/andre/Documents/tese/projeto/hardware/macc.VIVADO -part xc7z010clg400-1
