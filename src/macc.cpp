@@ -1,37 +1,47 @@
 #include <hls_stream.h>
 
 #include <ap_int.h>
+#include <ap_fixed.h>
 #include <ap_axi_sdata.h>
 
 // ** Buses **
-#define IN_BUS_SIZE  128
-#define OUT_BUS_SIZE 64
+#define I_BUS_b  128
+#define TKEEP_MASK 0xFFFF
+#define TSTRB_MASK 0xFFFF
+#define O_BUS_b 64
 
 // ** Input Type **
-#define IN_T_BITS 16
-#define IN_T_BYTES 2                                        // IN_T_BITS/8
+#define I_T_b 16
+#define I_T_B 2                                       		// IN_T_b/8
+
+// ** Vectors **
+#define MAX_IN 8                                            // I_BUS_b/I_T_b
+#define MAX_VEC 16384
+#define MAX_MEM 2048                                        // MAX_VEC*(I_T_b/I_BUS_b)
+
+// ** Operations **
+#define MULT_SIZE 32                                        // 2*I_T_b
+#define ACC_SIZE 43                                         // MULT_SIZE + 11 // log2(MAX_MEM)=11
 
 // ** IO **
-typedef struct ap_axis<IN_BUS_SIZE, 0, 0, 0> in_t;
-typedef struct ap_axis<OUT_BUS_SIZE, 0, 0, 0> out_t;
+typedef struct ap_axis<I_BUS_b, 0, 0, 0> in_t;
+typedef struct {
+	ap_fixed<O_BUS_b, ACC_SIZE> data;
+	ap_uint<1> last;
+} out_t;
 
-// ** Vetores **
-#define MAX_IN 8                                            // IN_BUS_SIZE/IN_T_BITS
-#define MAX_VEC 16384
-#define MAX_MEM 2048                                        // MAX_VEC*(IN_T_BITS/IN_BUS_SIZE)
+// * Other *
+#define SCALE 5
 
-// ** Operaçõees **
-#define MULT_SIZE 32                                        // 2*IN_T_BITS
-#define ACC_SIZE 43                                         // MULT_SIZE + 11 // log2(MAX_MEM)
-
-// ** Memória **
-static ap_uint<IN_BUS_SIZE> localmem[MAX_MEM];
+// ** Memory **
+static ap_uint<I_BUS_b> localmem[MAX_MEM];
 
 /* 	** Top-level function **
  *
  *	Produto Interno
- *	strm_in: 	vetores: a,b
- *	strm_out:	um elemento escalar: a.b
+ *	strm_in: 	vectors: a,b
+ *	strm_out:	scalar: a.b
+ *	len:		len of input vector (assuming a vector 128 bits wide, then should be 1/8 of the short int vector size)
  */
 void macc(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out)
 {
@@ -43,69 +53,68 @@ void macc(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out)
     in_t tmp;
     out_t tmpo;
 
-    // ** Operandos **
-    ap_int<IN_T_BITS> a, b;
+    // ** Operands **
+    ap_int<I_T_b> a, b;
 
-    // ** Operações **
+    // ** Operations **
     ap_int<MULT_SIZE> mult;
-    ap_int<ACC_SIZE> acc;
+    ap_int<ACC_SIZE> acc = 0;
 
     // ** Auxiliar **
+    ap_uint<11> last; 							// log2(MAX_MEM)=11
 
-    // nº de pacotes recebidos                  -- BUS 128 BITS
-    static ap_uint<14> pkts;                    // log2(MAX_VEC)=14
-
-    // controlo
-    static ap_uint<14> i;                       // log2(MAX_VEC)=14
+    // control
+    static ap_uint<14> h, i;                    // log2(MAX_VEC)=14
     static ap_uint<8> j;                        // log2(IN_BUS_SIZE)=8
-    static ap_uint<(IN_BUS_SIZE + 7)/8> k;      // dimensão de TKEEP (AXI)
+    static ap_uint<(I_BUS_b + 7)/8> k;      	// dimensão de TSTRB (AXI)
 
-    for (i = 0; i < MAX_MEM; i++) {
-        tmp = strm_in.read();                   // Leitura do primeiro vetor 	(a)
+    /* Behaviour */
+
+    last = strm_in.read().data.range(10, 0); 	// FIRST ELEMENT RECEIVED IS THE (LENGTH - 1) <!>
+
+    for (i = 0;; i++) {
+        tmp = strm_in.read();                   // 1st vector read 	(a)
         localmem[i] = tmp.data;
-        if (tmp.last == 1) break;
+
+        if(i == last)
+			break;
     }
-    pkts = ++i;
 
-    do {
-        acc = 0;
+	for (i = 0;; i++) {
+		tmp = strm_in.read();            		// 2nd vector read	(b)
 
-        for (i = 0; i < pkts; i++) {
-        #pragma HLS loop_flatten
+		/* TSTRB : sets which BUS bytes are valid; each bit indicates one valid byte.
+		 * I_T_B(=2): k has one HIGH bit corresponding to the less significant byte position associated to the iteration
+		 * => AND OPERATION == 0 only when the integer is set as invalid in TSTRB.
+		 */
 
-            tmp = strm_in.read();               // Leitura do segundo vetor		(b) (em pipeline com o produto interno)
+		k = 1;
+		for (j = 0; j < I_BUS_b; j += I_T_b) {
+		#pragma HLS unroll // loop iterations are independent (except for the accumulation), which allows loop unrolling
+		#pragma HLS pipeline
 
-            /* TKEEP : O sinal define que bytes do BUS de entrada são válidos; cada bit indica a validade de um byte.
-             * IN_T_BYTES(=2): O valor k fica com um único bit a '1' na posição do byte menos significativo associado à iteração
-             * logo AND é =0 apenas quando o inteiro recebido for indicado como inválido em TKEEP.
-             */
-            k = 1;
-            for (j = 0; j < IN_BUS_SIZE; j += IN_T_BITS) {
-            #pragma HLS unroll
-            #pragma HLS pipeline
+			// Operands
+			a = localmem[i].range(j + 15, j);
+			b = tmp.data.range(j + 15, j);
 
-                // Operandos
-                a = localmem[i].range(j + 15, j); // um único elemento é lido durante o loop, pelo que o unroll não utiliza memória adicional para carregar os elementos
-                b = tmp.data.range(j + 15, j);
+			// Dot product
+			if ((tmp.strb & k) != 0)
+				mult = a * b;
+			else
+				mult = 0;
+			acc += mult;
 
-                // Produto Interno
-                if (tmp.keep & k != 0)
-                    mult = a * b;
-                else
-                    mult = 0;
-                acc += mult;
+			// Multiplier control
+			k = k << I_T_B;
+		}
 
-                // Controlo do Multiplicador
-                k = k << IN_T_BYTES;
-            }
-        }
+		if(i == last)
+			break;
+	}
 
-        // Resultado
-        tmpo.last = tmp.last;
-        tmpo.keep = 0xff; // indica que todos os bytes estão válidos
-        tmpo.strb = tmpo.keep; // strb indica o mesmo que o tkeep
-        tmpo.data = acc;
-        strm_out.write(tmpo);
-
-    } while (tmp.last != 1);
+	// Results
+	tmpo.data = acc;
+	tmpo.data = tmpo.data >> SCALE;
+	tmpo.last = 1;
+	strm_out.write(tmpo);
 }
