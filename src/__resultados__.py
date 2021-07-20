@@ -1,5 +1,5 @@
 from numpy import array
-from matplotlib.pyplot import scatter, show, xlabel, ylabel
+from matplotlib.pyplot import scatter, plot, show, xlabel, ylabel, figure, title
 
 Board = {
     "cortex_a9": {
@@ -12,54 +12,43 @@ Board = {
 }
 
 Design = {
-    "dma_axi_reset" : {"luts": 4475-(507+290), "register": 5793-(739+289), "ram_percent": 19.17-(2.10+0.82), "dsp": 0},
-    "ip": {
+    "macc_v2": {
+        "luts": 507, "registers": 739,"ram_percent": 2.10, "dsp": 8,
+        "additional_blocks": {
+            "DMA_AXI" : {"luts": 3678, "register": 4765, "ram_percent": 16.25, "dsp": 0},
+            "Floating Point (7.1)": {"luts": 290, "registers": 289, "ram_percent": 0.82, "dsp": 0}
+        },
+        "target_clock": 10, "hls_estimation": 6.914, "vivado_wns": 0.488,
+        "latency": 13, "axi": "stream"
+    }
+}
+
+Testbench = {
+    # performance in miliseconds
+    # (ps time corresponds to the performance of the accelerated code section in the processor, for comparison)
+
+    "tracking correlator": {
         "macc_v2": {
-            "luts": 507+290, "registers": 739+289,"ram_percent": 2.10+0.82, "dsp": 8,
-            "target_clock": 10, "estimated_clock": 6.914, "pl_WNS": 0.488,
-            "latency": 13, "thoughput": -1, "axi": "stream",
-            "additional_blocks": ["Floating Point (7.1)"]
+            "name": "Correlation and Integration",
+            "samples": array([127, 255, 511, 1023, 2046, 4092, 8184, 16368]),
+            "pl_time": array([0.300126, 0.314160, 0.343391, 0.400929, 0.517458, 0.749031, 1.203052, 2.166640]),
+            "ps_time": array([0.009828, 0.018825, 0.038471, 0.077458, 0.155917, 0.312169, 0.621526, 1.246951])
         }
     }
 }
 
-'''
-    Testbench performance in miliseconds
-    (ps time corresponds to the performance of the accelerated code section in the processor, for comparison)
-'''
-Testbench = {
-    "Tracking Correlator" : {
-        "macc_v2": array ([
-            [127, 0.300126],
-            [255, 0.314160],
-            [511, 0.343391],
-            [1023, 0.400929],
-            [2046, 0.517458],
-            [4092, 0.749031],
-            [8184, 1.203052],
-            [16368, 2.166640]
-        ]),
-        "ps" : array([
-            [127, 0.009828],
-            [255, 0.018825],
-            [511, 0.038471],
-            [1023, 0.077458],
-            [2046, 0.155917],
-            [4092, 0.312169],
-            [8184, 0.621526],
-            [16368, 1.246951]
-        ])
-    }
-}
+for test in Testbench.values():
+    for impl in test.values():
+        x = impl["samples"]
+        f = impl["pl_time"]
+        g = impl["ps_time"]
 
-x = Testbench["Tracking Correlator"]["ps"][:,0]
-ps = Testbench["Tracking Correlator"]["ps"][:,1]
-macc = Testbench["Tracking Correlator"]["macc_v2"][:,1]
+        figure()
+        title(impl["name"])
+        plot(x, f, '-o')
+        plot(x, g, '-o')
 
-scatter(x, ps)
-scatter(x, macc)
-
-xlabel("#samples")
+xlabel("Samples")
 ylabel("Time [ms]")
 
 show()

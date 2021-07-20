@@ -48,7 +48,7 @@ using namespace std;
 #define VEC_SIZE_M 16384
 #define VEC_SIZE 16368
 
-#define MUTE 1
+#define MUTED 1
 
 int main()
 {
@@ -84,7 +84,7 @@ int main()
    short buffer_u[MAX_IN];
    short buffer_v[MAX_IN];
 
-   if(!MUTE) printf("U\n");
+   if(!MUTED) printf("U\n");
    for(int k = 0; k < VEC_SIZE; k += MAX_IN) {
 	   fread(buffer_u,sizeof(short),MAX_IN,u);
 	   tmpa.strb = 1;
@@ -92,21 +92,21 @@ int main()
 		   ((short int*) &(tmpa.data))[i] = buffer_u[i];
 		   for(int j = 0; j < I_T_B - !i; j++)
 			   tmpa.strb |= tmpa.strb << 1;
-		   if(!MUTE) printf("strb = %d\n", (int) tmpa.strb);
+		   if(!MUTED) printf("strb = %d\n", (int) tmpa.strb);
 	   }
 
 	   if(k >= VEC_SIZE - MAX_IN)
 		   tmpa.last = 1;
 
 	   for(int i = 0; (i < MAX_IN) && (k + i < VEC_SIZE); i++)
-		   if(!MUTE) printf("%d ", ((short int*) &(tmpa.data))[i]);
-	   if(!MUTE) printf("\n");
+		   if(!MUTED) printf("%d ", ((short int*) &(tmpa.data))[i]);
+	   if(!MUTED) printf("\n");
 
 	   tmpa.keep = 0xFF;
 	   in.write(tmpa);
    }
 
-   if(!MUTE) printf("V\n");
+   if(!MUTED) printf("V\n");
    for(int k = 0; k < VEC_SIZE; k += MAX_IN) {
 	   tmpb.strb = 1;
 	   fread(buffer_v,sizeof(short),MAX_IN,v);
@@ -119,8 +119,8 @@ int main()
 		   tmpb.last = 1;
 
 	   for(int i = 0; (i < MAX_IN) && (k + i < VEC_SIZE); i++)
-		   if(!MUTE) printf("%d ", ((short int*) &(tmpb.data))[i]);
-	   if(!MUTE) printf("\n");
+		   if(!MUTED) printf("%d ", ((short int*) &(tmpb.data))[i]);
+	   if(!MUTED) printf("\n");
 
 	   in.write(tmpb);
    }

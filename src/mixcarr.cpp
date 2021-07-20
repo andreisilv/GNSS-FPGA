@@ -9,30 +9,33 @@
 #define I_T_b				8
 #define O_T_b				16		// > ADD_BUS_b
 
+// IO Type . auxiliar
 #define LOG_I_T_b 3
-
+#define I_T_B 2
+#define I_T_B_MASK 0x3
+#define x2_I_T_B_MASK 0xF
 #define x2_I_T_b 16
-#define x4_O_T_b 32
+#define x2_I_T_B 4
+#define x2_O_T_b 32
+#define x4_O_T_b 64
 
-#define TRIG_ENTRIES		7
-#define TRIG_ENTRIES_b		8
-#define D090 8 //1*(TRIG_ENTRIES + 1)
-#define D180 16 //2*(TRIG_ENTRIES + 1)
-#define D270 24 //3*(TRIG_ENTRIES + 1)
-#define D360 32 //4*(TRIG_ENTRIES + 1)
+// Local Carrier Table
 
-#define LOG_D360 5
+#define COST_ENTRIES	8
+#define COST_ENTRIES_b	8
+#define INDEX_b			5
+#define INDEX_MASK 		0x1F
+#define D90				8
 
 // ** Other constants **
-#define TRIG_AMPLITUDE 32
-#define CMASK 0x1F
 #define COMPLEX 1
+#define REAL 0
 
 // ** BUS SIZES **
 #define I_BUS_b				32
 #define O_BUS_b				128
-#define MUL_BUS_b			10 		// most GNSS receivers A/DC quantize 4 bits (signed); trig vector (unsigned) uses 5 bits, 6 bits (signed)
-#define ADD_BUS_b			16		// MUL_BUS_b + 1 = 11 ----same as output----> 16
+#define MUL_BUS_b			10 		// most GNSS receivers A/DC quantize 4 bits (signed) + trig vector 5 bits (unsigned), 6 bits (signed)
+#define ADD_BUS_b			11		// MUL_BUS_b + 1 = 11
 
 #define LOG_I_BUS_b 5
 #define LOG_O_BUS_b 8
@@ -48,12 +51,9 @@ typedef struct ap_axis<O_BUS_b, 0, 0, 0> out_t;
 
 // ** LOCAL MEM **
 
-const ap_int<TRIG_ENTRIES_b> trig[TRIG_ENTRIES] = {32, 31, 30, 27, 23, 18, 12, 6, 0, -6, -12, -18, -23, -27, -30, -31, -32, -31, -30, -27, -23, -18, -12,  -6, 0, 6, 12, 18, 23, 27, 30, 31};
-//const ap_int<TRIG_ENTRIES_b> trig[TRIG_ENTRIES] = {31, 30, 27, 23, 18, 12, 6}; //   56 bits
-const float pi = 3.1415926535897932384626; 	                        			 // + 32 bits
-															                     // --------
-			 												                     //   88 bits
-																
+const ap_int<COST_ENTRIES_b> cost[COST_ENTRIES] = {32, 31, 30, 27, 23, 18, 12, 6};
+const float pi = 3.1415926535897932384626;
+
 // PI ~ 3.141592 = 0b011.0010010000111111011 -> 22 bits -> 21 bits (unsigned)
 // PI ~ 3.14159  = 0b011.00100100001111111   -> 20 bits -> 19 bits (unsigned)
 // PI ~ 3.1415	 = 0b011.00100100001111      -> 17 bits -> 16 bits (unsigned)
@@ -61,32 +61,41 @@ const float pi = 3.1415926535897932384626; 	                        			 // + 32 
 
 /*
  * cost = (short) floor(32 * cos(2*PI/32 * i) + 0.5) =
- * = [32.,  31.,  30.,  27.,  23.,  18.,  12.,   6.,
- *     0.,  -6., -12., -18., -23., -27., -30., -31.,
- *   -32., -31., -30., -27., -23., -18., -12.,  -6.,
- *     0.,   6.,  12.,  18.,  23.,  27.,  30.,  31.]
+ *		= [32,  31,  30,  27,  23,  18,  12,   6,		// 0-7 // 00000-00111
+ *			0,  -6, -12, -18, -23, -27, -30, -31,       // 8-15// 01000-01111
+ *		  -32, -31, -30, -27, -23, -18, -12,  -6,       //16-23// 10000-10111
+ *			0,   6,  12,  18,  23,  27,  30,  31]       //24-31// 11000-11111
  *
  * cost = [31, 30, 27, 23, 18, 12, 6]
  * max = TRIG_AMPLITUDE;
  * zero = 0;
  *
  *	 COS(x)
- *     0- 90 : {max,  cost[0:7]}
- *    90-180 : {zero, cost[7:0]*(-1)}
- *   180-270 : {max,  cost[0:7]*(-1)}
- *   270-360 : {zero, cost[0:7]}
+ *     0- 90 : {max,  cost[0:6]}
+ *    90-180 : {zero, cost[6:0]}*(-1)
+ *   180-270 : {max,  cost[0:6]}*(-1)
+ *   270-360 : {zero, cost[6:0]}
  *
  *   SIN(x) = COS(x - 90)
+ *
 */
 
-int mod360(int index)
+int cosseno(ap_uint<INDEX_b> index)
 {
-	if(index > D360)
-		return index - D360;
-	else if(index <  0)
-		return index + D360;
-	else
-		return index;
+	if(index == 8 || index == 24)
+		return 0;
+
+	if(index.get_bit(3)) {
+		if(index.get_bit(3) ^ index.get_bit(4))
+			return 0 - cost[(0 - index).range(2,0)];
+		else
+			return cost[(0 - index).range(2,0)];
+	} else {
+		if(index.get_bit(3) ^ index.get_bit(4))
+			return 0 - cost[index.range(2,0)];
+		else
+			return cost[index.range(2,0)];
+	}
 }
 
 /*
@@ -95,7 +104,7 @@ int mod360(int index)
 
 /*
 *
-*  Multiply the complex/real data with the local carrier.
+*  Multiply complex/real data with a local carrier.
 *
 */
 
@@ -105,97 +114,141 @@ void mixcarr(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out)
 #pragma HLS interface axis 			port=strm_out
 #pragma HLS interface ap_ctrl_none 	port=return
 
+	/*
+	// DEBUG LOCAL TABLE
+	for(int i = -32; i < 64; i++)
+		printf("cos[%d]=%d\n", i, cosseno(i));
+	exit(-1);
+	*/
+
     // ** IO **
+
 	in_t in;
 	out_t out;
 
     // ** Operands **
-	ap_fixed<I_T_b> data[2];
-	ap_fixed<TRIG_ENTRIES_b> cos;
-	ap_fixed<TRIG_ENTIRES_b> sin;
-	ap_fixed<O_BUS_b> result; // register with outputs of the adders
+
+	ap_int<I_T_b> data[2];
 
     // ** Operations **
-	ap_fixed<MUL_BUS_b> mul[4];
-	// there are adders
+
+	ap_int<MUL_BUS_b> mul[4];
+	ap_int<ADD_BUS_b> add[2];
 
     // control
-	float phase, pstep;
+
+	ap_fixed<64,32> phase;
+	ap_fixed<32,16> pstep;
 	ap_int<1> dtype = COMPLEX;
-    static ap_uint<LOG_I_BUS_b> i;
-    static ap_uint<LOG_O_BUS_b> j;
-    static ap_uint<(I_BUS_b + 7)/8> k;      	// dimensão de TSTRB (AXI)
-    static ap_uint<LOG_D360> index;
-	ap_int<LENGTH_REGISTER_b - 1> last, processed = 0;
+    static ap_uint<INDEX_b> index;
+    ap_int<LENGTH_REGISTER_b - 1> last, processed = 0;
+
+	static ap_uint<LOG_I_BUS_b+1> i;
+    static ap_uint<LOG_O_BUS_b+1> j;
+    static ap_uint<(I_BUS_b + 7)/8> k;	  // dimensão de TSTRB (AXI) ( valid bytes control )
+    static ap_uint<(O_BUS_b + 7)/8> strbo;// dimensão de TSTRB (AXI) ( valid bytes control )
 
     /* Behaviour */
 
-	// + 3 Cycles Latency, but less 83 bits in the BUS
-	in = strm_in.read().data;
-	last = in.range(LENGTH_REGISTER_b - 1, 0); 	// FIRST ELEMENT RECEIVED IS THE (LENGTH - 1) <!>
-	dtype = in.range(I_BUS_b, I_BUS_b);			// THE LEAST BIT OF THE FIRST ELEMENT SETS THE DATA TYPE <!>
+	/*
+	 * <!> 4 ARGUMENTS must be read one at a time, ASSUMING 32 bits INPUT BUS
+	 */
 
-	in = strm_in.read().data;
-	phase = in.read(); 							// SECOND ELEMENT RECEIVED IS THE PHASE <!>
+	// 1st: last = length - 1
+	in = strm_in.read();
+	last = in.data;
 
-	in = strm_in.read().data;
-	pstep = in.read();							// THIRD ELEMENT RECEIVED IS THE PHASE_STEP <!>
+	// 2nd: data type
+	in = strm_in.read();
+	dtype = in.data.get_bit(0);
 
-	do {
-		in = strem_in.read().data; // read 4 elements at once (32b)
+	// 3rd/4th: carrier phase, phase step
+	in = strm_in.read();
+	phase = in.data;
 
-		k = 1;
-		for (i = 0, j = 0; i < I_BUS_b; i += x2_I_T_b, j += x4_O_T_b, phase += pstep) {
-		#pragma HLS unroll
-		#pragma HLS pipeline
-			// loop over the 4 elements (each loop processes 2 elements)
-            
-			index = ((int) phase) & CMASK;
+	in = strm_in.read();
+	pstep = in.data;
 
-			// real case has double the throughput, skip to avoid bottleneck
-			if(!dtype && (i & x4_O_T_b)) {
+	do {// while there are real/complex elements to process
 
-				// Operands
-				data[0] = in.range(i + I_T_b - 1, i);
-				data[1] = in.range(i + 2*I_T_b - 1, i + I_T_b);
+		// read four elements at once (for the 32b bus)
 
-				// Equal to zero if data is invalid
-				if ((tmp.strb & k) != 0) {
-					cos = trig[mod360(*index)];
-					sin = trig[mod360(index - D090)];
-				} else {
-					cos = 0;
-					sin = 0;
-				}			
+		in = strm_in.read();
 
-				// Operations
-				mul[0] = cos*data[0];
-				mul[1] = sin*data[0];
-				mul[2] = cos*data[1];
-				mul[3] = sin*data[1];
+		// validity control
 
-				if(dtype == COMPLEX) {
-					result.range(j + O_T_b - 1, j) =  mul[0] - mul[3]; /* In quadrature component */
-					result.range(j + 2*O_T_b - 1, O_T_b + j) = mul[1] - mul[2]; /* In phase component*/
-				} else {
-					result.range(j + O_T_b - 1, j) =  mul[0]; /* In quadrature component */
-					result.range(j + 2*O_T_b - 1, O_T_b + j) = mul[1]; /* In phase component*/
-					result.range(j + 3*O_T_b - 1, 2*O_T_b + j) = mul[2]; /* In phase component*/
-					result.range(j + 4*O_T_b - 1, 3*O_T_b + j) = mul[3]; /* In quadrature component */
-				}
-			}
+		k = x2_I_T_B_MASK;
+		strbo = TSTRB_MASK;
+
+		/* LOOP
+		 *
+		 * Since multiple data is received at once the loop can be unrolled.
+		 * At least two elements of data are read if data is complex. To simplify
+		 * loop unrolling, all iterations can utilize two input elements at a time
+		 * and differentiate between complex and real in how many outputs are
+		 * calculated at once.
+		 */
+		j = 0;
+		for (i = 0; i < I_BUS_b; i += x2_I_T_b) {
+			#pragma HLS unroll
+			#pragma HLS pipeline
+
+			// Operands
+			data[0] = in.data.range(i + I_T_b - 1, i);
+			data[1] = in.data.range(i + x2_I_T_b - 1, i + I_T_b);
+
+			// Control
+			if(j >= O_BUS_b/2) j = 0;
 
 			// Validity control
-			k = k << 2*I_T_B;
+			if (!(in.strb & k == k))
+				strbo = strbo & !k;
+			k = k << x2_I_T_B;
+
+			// Operations
+			index = phase;
+
+			mul[0] = cosseno(index)			*data[0];
+			mul[1] = cosseno(index - D90)	*data[0];
+
+			// Phase step
+			if(dtype == REAL) {
+				phase += pstep;
+				index = phase;
+			}
+
+			mul[2] = cosseno(index)			*data[1];
+			mul[3] = cosseno(index - D90)	*data[1];
+
+			// Phase step
+			phase += pstep;
+
+			/* OUTPUT:
+			   [                    128b                   ]
+			   [      IN PHASE       ][  IN QUADRATURE     ]
+			*/
+			if(dtype == COMPLEX) {
+				add[0] = mul[0] - mul[3];
+				add[1] = mul[1] - mul[2];
+				out.data.range(j + O_T_b - 1, j) = add[0]; 										// II[i]: 	In quadrature component
+				out.data.range(O_BUS_b/2 + j + O_T_b - 1, O_BUS_b/2 + j) = add[1];				// QQ[i]: 	In phase component
+				j += O_T_b;
+			} else {
+				out.data.range(j + O_T_b - 1, j) =  mul[0]; 									// II[i]: 	In phase component
+				out.data.range(O_BUS_b/2 + j + O_T_b - 1, O_BUS_b/2 + j) = mul[1]; 				// QQ[i]: 	In quadrature component
+				out.data.range(j + 2*O_T_b - 1, O_T_b + j) = mul[2]; 							// II[i+1]: In phase component
+				out.data.range(O_BUS_b/2 + j + x2_O_T_b - 1, O_BUS_b/2 + O_T_b + j) = mul[3]; 	// QQ[i+1]: In quadrature component
+				j += x2_O_T_b;
+			}
 		}
 
-		// the output are 8 elements (128b)
-		out.data = result;
 		out.keep = TKEEP_MASK;
-		out.strb = k - 1;
+		out.strb = strbo;
 		if(processed + 1 > last)
 			out.last = 1;
-		strm_out.write(out);
 
-	} while(processed++ <= last);
+		if(j >= O_BUS_b/2)
+			strm_out.write(out);
+
+	} while(processed++ < last);
 }
