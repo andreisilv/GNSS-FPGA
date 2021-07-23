@@ -57,7 +57,7 @@ void mixcarr(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out);
 
 // --------------------------- Test Bench  ----------------------------------
 
-#define THRESHOLD 0.000001
+#define THRESHOLD 0.196 //%
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -67,20 +67,25 @@ void mixcarr(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out);
 
 #define MUTED 0
 
-void mixcarrsw(FILE* signal, short* II, short *QQ, ap_fixed<32,16> phase, ap_fixed<32,16> phase_step, int dtype);
-
 int main()
 {
    hls::stream<in_t> in;
    hls::stream<out_t> out;
-   int err;
+   int err, errl;
 
    in_t arg, tmpa, tmpb;
    out_t tmpo;
 
    FILE *signal = fopen("../../../../../../lib/sdrlib/test/IF_GN3S_G03/signal.bin", "rb");
-   short II[VEC_SIZE];
-   short QQ[VEC_SIZE];
+   FILE *fII = fopen("../../../../../../lib/sdrlib/test/IF_GN3S_G03/II.bin", "rb");
+   FILE *fQQ = fopen("../../../../../../lib/sdrlib/test/IF_GN3S_G03/QQ.bin", "rb");
+
+   char buffer[I_BUS_b/I_T_b];
+   short II[O_BUS_b/O_T_b];
+   short QQ[O_BUS_b/O_T_b];
+
+   int bus_size = I_BUS_b/I_T_b;
+   int i;
 
    if(signal == NULL)
 	   return -1;
@@ -88,8 +93,24 @@ int main()
    /* Arguments */
    int last = (VEC_SIZE*I_T_b + I_BUS_b - 1)/I_BUS_b - 1;
    int dtype = REAL;
-   ap_fixed<32,16> phase = 0;
-   ap_fixed<32,16> phase_step = 8.004105681984f;
+   ap_fixed<64,20> phase = 0;
+   ap_fixed<64,20> phase_step = 8.004105681984;
+   //      <64,20>            = 8.004105681983901377
+   //      <68,4>             = 0b1000.0000000100001101000100011110100111011001010111000000000000000000
+
+   /*
+   printf("phase step = %s\n", phase_step.to_string().c_str());
+   float phases = 8.004105681984;
+   float phased = 0;
+   ap_fixed<64,20> phasef;
+   FILE *stxt = fopen("../../../../../../../../rascunhos/S.txt", "w");
+   for(int i = 0; i < VEC_SIZE/2; i++) {
+	   phased += 2*phases;
+	   phasef = phased;
+	   fprintf(stxt, "%f\n", phasef.to_float());
+   }
+   fclose(stxt);
+    */
 
    arg.keep = TKEEP_MASK;
    arg.strb = TSTRB_MASK;
@@ -104,17 +125,15 @@ int main()
    in.write(arg);
 
    // phase / phase step
-   arg.data = phase;
+   arg.data = phase.range(31,0);
    in.write(arg);
-   arg.data = phase_step;
+
+   arg.data = phase_step.range(31,0);
+   in.write(arg);
+   arg.data = phase_step.range(63,32);
    in.write(arg);
 
    /* Write Data  */
-
-   char buffer[I_BUS_b/I_T_b];
-
-   int bus_size = I_BUS_b/I_T_b;
-   int i;
 
    for(i = 0; i < VEC_SIZE; i += bus_size) {
 
@@ -138,78 +157,34 @@ int main()
    /* HW */
    mixcarr(in, out);
 
-   /* SW */
-   mixcarrsw(signal, II, QQ, phase, phase_step, dtype);
-
-   err = 0;
+   /* Check */
+   err = 0, errl = err;
    bus_size = O_BUS_b/O_T_b;
 
-   if(!MUTED) printf("SW.I = HW.I && SW.Q == HW.Q\n");
+   if(!MUTED)
+	   printf("SW.I : HW.I \t SW.Q : HW.Q\n");
+
    for(int i = 0; i < 2*VEC_SIZE; i+= bus_size) {
+
 	   tmpo = out.read();
-	   printf("> out %d\n", i/bus_size);
+	   fread(II, sizeof(char), bus_size, fII);
+	   fread(QQ, sizeof(char), bus_size, fQQ);
+
 	   for(int j = 0; j < bus_size/2; j ++) {
-		   err += II[i/2 + j] - ((short*) &tmpo)[j];
-		   err += QQ[i/2 + j] - ((short*) &tmpo)[bus_size/2+j];
-		   if(!MUTED && err) printf("%+3d == %+3d\t%+3d == %+3d\n", II[i/2 + j], ((short*) &tmpo)[j], QQ[i/2 + j], ((short*) &tmpo)[bus_size/2+j]);
+		   if((II[j] != ((short*) &tmpo)[j]) || (QQ[j] - ((short*) &tmpo)[bus_size/2+j]))
+			   err ++;
+
+		   if(!MUTED && (err != errl)) {
+			   printf("%+3d : %+3d\t%+3d : %+3d #%6d (Word %5d) [#Error=%3d]\n", II[j], ((short*) &tmpo)[j], QQ[j], ((short*) &tmpo)[bus_size/2+j], i, i/bus_size, err);
+			   errl = err;
+		   }
 	   }
    }
 
    /* Close */
    fclose(signal);
+   fclose(fII);
+   fclose(fQQ);
 
-   return err;
-}
-
-void mixcarrsw(FILE* signal, short* II, short *QQ, ap_fixed<32,16> phase, ap_fixed<32,16> phase_step, int dtype)
-{
-	rewind(signal);
-
-	ap_fixed<64,32> ph = phase;
-	char buffer[2];
-	short mul1, mul2, mul3, mul4, cost[32], sint[32];
-	int index;
-
-	// local table
-	for (int i = 0; i < 32; i++) {
-		cost[i] = (short) floor(32*cos((pi/16)*i)+0.5);
-		sint[i] = (short) floor(32*sin((pi/16)*i)+0.5);
-	}
-
-	for(int i = 0; i < VEC_SIZE; i+= 2)
-	{
-		/* complex case:
-	     *
-		 *  II = cos*data.r - sin*data.i;
-         *  QQ = sin*data.r + cos*data.i;
-		 *
-		 */
-
-		fread(buffer, sizeof(char), 2, signal);
-
-		index = ((int) ph) & INDEX_MASK;
-
-		mul1 = cost[index]*buffer[0];
-		mul2 = sint[index]*buffer[0];
-
-		if(dtype == REAL) {
-			ph += phase_step;
-			index = ((int) ph) & INDEX_MASK;
-		}
-
-		mul3 = cost[index]*buffer[1];
-		mul4 = sint[index]*buffer[1];
-
-		if(dtype == COMPLEX) {
-			II[i] = mul1 - mul4;
-			QQ[i] = mul2 - mul3;
-		} else {
-			II[i] = mul1;
-			QQ[i] = mul2;
-			II[i + 1] = mul3;
-			QQ[i + 1] = mul4;
-		}
-
-		ph += phase_step;
-	}
+   return err > (THRESHOLD/100)*VEC_SIZE;
 }

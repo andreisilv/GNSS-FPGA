@@ -52,6 +52,8 @@ typedef struct ap_axis<O_BUS_b, 0, 0, 0> out_t;
 // ** LOCAL MEM **
 
 const ap_int<COST_ENTRIES_b> cost[COST_ENTRIES] = {32, 31, 30, 27, 23, 18, 12, 6};
+//const ap_int<COST_ENTRIES_b> cost[32] = {32,  31,  30,  27,  23,  18,  12,   6, 0,  -6, -12, -18, -23, -27, -30, -31, -32, -31, -30, -27, -23, -18, -12,  -6, 0,   6,  12,  18,  23,  27,  30,  31};
+
 const float pi = 3.1415926535897932384626;
 
 // PI ~ 3.141592 = 0b011.0010010000111111011 -> 22 bits -> 21 bits (unsigned)
@@ -98,6 +100,7 @@ int cosseno(ap_uint<INDEX_b> index)
 	}
 }
 
+
 /*
 * BUG: number of input elements must be even
 */
@@ -134,14 +137,15 @@ void mixcarr(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out)
 
 	ap_int<MUL_BUS_b> mul[4];
 	ap_int<ADD_BUS_b> add[2];
+	ap_int<MUL_BUS_b> cos[2], sin[2];
 
     // control
 
-	ap_fixed<64,32> phase;
-	ap_fixed<32,16> pstep;
-	ap_int<1> dtype = COMPLEX;
-    static ap_uint<INDEX_b> index;
     ap_int<LENGTH_REGISTER_b - 1> last, processed = 0;
+	ap_int<1> dtype;
+	ap_fixed<64,20> phase;
+	ap_fixed<64,20> pstep;
+	ap_int<INDEX_b> index;
 
 	static ap_uint<LOG_I_BUS_b+1> i;
     static ap_uint<LOG_O_BUS_b+1> j;
@@ -151,7 +155,7 @@ void mixcarr(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out)
     /* Behaviour */
 
 	/*
-	 * <!> 4 ARGUMENTS must be read one at a time, ASSUMING 32 bits INPUT BUS
+	 * <!> 4 ARGUMENTS READ ONE AT A TIME (assuming 32 bits input)
 	 */
 
 	// 1st: last = length - 1
@@ -162,21 +166,19 @@ void mixcarr(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out)
 	in = strm_in.read();
 	dtype = in.data.get_bit(0);
 
-	// 3rd/4th: carrier phase, phase step
+	// 3rd/4th: carrier phase, phase step (64b, read in two steps to increase precision)
 	in = strm_in.read();
-	phase = in.data;
+	phase.range(63,31) = in.data;
 
 	in = strm_in.read();
-	pstep = in.data;
+	pstep.range(31,0) = in.data;
+	in = strm_in.read();
+	pstep.range(63,32) = in.data;
 
 	do {// while there are real/complex elements to process
-
-		// read four elements at once (for the 32b bus)
-
 		in = strm_in.read();
 
-		// validity control
-
+		// valid bytes control
 		k = x2_I_T_B_MASK;
 		strbo = TSTRB_MASK;
 
@@ -188,44 +190,43 @@ void mixcarr(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out)
 		 * and differentiate between complex and real in how many outputs are
 		 * calculated at once.
 		 */
-		j = 0;
-		for (i = 0; i < I_BUS_b; i += x2_I_T_b) {
+		for (i = 0, j = 0; i < I_BUS_b; i += x2_I_T_b) {
 			#pragma HLS unroll
 			#pragma HLS pipeline
-
-			// Operands
-			data[0] = in.data.range(i + I_T_b - 1, i);
-			data[1] = in.data.range(i + x2_I_T_b - 1, i + I_T_b);
 
 			// Control
 			if(j >= O_BUS_b/2) j = 0;
 
-			// Validity control
-			if (!(in.strb & k == k))
-				strbo = strbo & !k;
-			k = k << x2_I_T_B;
+			// ** Operands **
 
-			// Operations
 			index = phase;
+			cos[0] = cosseno(index);
+			index -= D90;
+			sin[0] = cosseno(index);
 
-			mul[0] = cosseno(index)			*data[0];
-			mul[1] = cosseno(index - D90)	*data[0];
-
-			// Phase step
 			if(dtype == REAL) {
-				phase += pstep;
-				index = phase;
+				index = phase + pstep;
+				cos[1] = cosseno(index);
+				index -= D90;
+				sin[1] = cosseno(index);
+			} else {
+				cos[1] = cos[0];
+				sin[1] = sin[0];
 			}
 
-			mul[2] = cosseno(index)			*data[1];
-			mul[3] = cosseno(index - D90)	*data[1];
+			data[0] = in.data.range(i + I_T_b - 1, i);
+			data[1] = in.data.range(i + x2_I_T_b - 1, i + I_T_b);
 
-			// Phase step
-			phase += pstep;
+			// ** Operations **
+
+			mul[0] = cos[0]*data[0];
+			mul[1] = sin[0]*data[0];
+			mul[2] = cos[1]*data[1];
+			mul[3] = sin[1]*data[1];
 
 			/* OUTPUT:
 			   [                    128b                   ]
-			   [      IN PHASE       ][  IN QUADRATURE     ]
+			   [      IN PHASE       ][   IN QUADRATURE    ]
 			*/
 			if(dtype == COMPLEX) {
 				add[0] = mul[0] - mul[3];
@@ -240,15 +241,26 @@ void mixcarr(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out)
 				out.data.range(O_BUS_b/2 + j + x2_O_T_b - 1, O_BUS_b/2 + O_T_b + j) = mul[3]; 	// QQ[i+1]: In quadrature component
 				j += x2_O_T_b;
 			}
+
+			// Phase step
+			phase += pstep;
+			if(dtype == REAL)
+				phase += pstep;
+
+			// valid bytes control
+			if (!(in.strb & k == k))
+				strbo = strbo & !k;
+			k = k << x2_I_T_B;
 		}
 
-		out.keep = TKEEP_MASK;
-		out.strb = strbo;
-		if(processed + 1 > last)
-			out.last = 1;
-
-		if(j >= O_BUS_b/2)
+		// Output
+		if(j >= O_BUS_b/2) {
+			out.keep = TKEEP_MASK;
+			out.strb = strbo;
+			if(processed + 1 > last)
+				out.last = 1;
 			strm_out.write(out);
+		}
 
 	} while(processed++ < last);
 }

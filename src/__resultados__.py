@@ -19,7 +19,19 @@ Design = {
             "Floating Point (7.1)": {"luts": 290, "registers": 289, "ram_percent": 0.82, "dsp": 0}
         },
         "target_clock": 10, "hls_estimation": 6.914, "vivado_wns": 0.488,
-        "latency": 13, "axi": "stream"
+        "latency": 13, "axi": "stream",
+        "io": {"in_bus": 128, "out_bus": 64},
+        "hls_directives": {
+            "loop unroll": True, "unroll factor": 8,  "pipeline": True, "loop flatten": True
+        }
+    },
+    "mixcarr_v1": {
+        "hls_estimation": 8.750,
+        "latency": 15 , "axi": "stream",
+        "io": {"in_bus": 32, "out_bus": 128},
+        "hls_directives": {
+            "loop unroll": 2, "unroll factor": 2, "pipeline": False, "loop flatten": False
+        }
     }
 }
 
