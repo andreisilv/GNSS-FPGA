@@ -76,9 +76,9 @@ int main()
    in_t arg, tmpa, tmpb;
    out_t tmpo;
 
-   FILE *signal = fopen("../../../../../../lib/sdrlib/test/IF_GN3S_G03/signal.bin", "rb");
-   FILE *fII = fopen("../../../../../../lib/sdrlib/test/IF_GN3S_G03/II.bin", "rb");
-   FILE *fQQ = fopen("../../../../../../lib/sdrlib/test/IF_GN3S_G03/QQ.bin", "rb");
+   FILE *signal = fopen("../../../../../../lib/sdrlib/test/data/signal.bin", "rb");
+   FILE *fII = fopen("../../../../../../lib/sdrlib/test/data/II.bin", "rb");
+   FILE *fQQ = fopen("../../../../../../lib/sdrlib/test/data/QQ.bin", "rb");
 
    char buffer[I_BUS_b/I_T_b];
    short II[O_BUS_b/O_T_b];
@@ -94,7 +94,8 @@ int main()
    int last = (VEC_SIZE*I_T_b + I_BUS_b - 1)/I_BUS_b - 1;
    int dtype = REAL;
    ap_fixed<64,20> phase = 0;
-   ap_fixed<64,20> phase_step = 8.004105681984;
+   //ap_fixed<64,20> phase_step = 8.004105681984;
+   ap_int<64> phase_step = 8.004105681984 * pow(2,44);
    //      <64,20>            = 8.004105681983901377
    //      <68,4>             = 0b1000.0000000100001101000100011110100111011001010111000000000000000000
 
@@ -117,15 +118,20 @@ int main()
    arg.last = 1;
 
    // last
+
    arg.data = last;
    in.write(arg);
 
    // data type
+
    arg.data = dtype;
    in.write(arg);
 
-   // phase / phase step
+   // phase / phase step (of width 64, written in two steps; in order to increase precision)
+
    arg.data = phase.range(31,0);
+   in.write(arg);
+   arg.data = phase.range(63,32);
    in.write(arg);
 
    arg.data = phase_step.range(31,0);
