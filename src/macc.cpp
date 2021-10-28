@@ -5,7 +5,7 @@
 #include <ap_axi_sdata.h>
 
 // ** Buses **
-#define I_BUS_b  128
+#define I_BUS_b  64
 #define TKEEP_MASK 0xFFFF
 #define TSTRB_MASK 0xFFFF
 #define O_BUS_b 64
@@ -15,9 +15,9 @@
 #define I_T_B 2                                       		// IN_T_b/8
 
 // ** Vectors **
-#define MAX_IN 8                                            // I_BUS_b/I_T_b
+#define MAX_IN 4                                            // I_BUS_b/I_T_b
 #define MAX_VEC 16384
-#define MAX_MEM 2048                                        // MAX_VEC*(I_T_b/I_BUS_b)
+#define MAX_MEM 4096                                        // MAX_VEC*(I_T_b/I_BUS_b)
 
 // ** Operations **
 #define MULT_SIZE 32                                        // 2*I_T_b
@@ -61,16 +61,16 @@ void macc(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out)
     ap_int<ACC_SIZE> acc = 0;
 
     // ** Auxiliar **
-    ap_uint<11> last; 							// log2(MAX_MEM)=11
+    ap_uint<12> last; 							// log2(MAX_MEM)=12
 
     // control
-    static ap_uint<14> h, i;                    // log2(MAX_VEC)=14
-    static ap_uint<8> j;                        // log2(IN_BUS_SIZE)=8
+    static ap_uint<12> h, i;                    // log2(MAX_VEC)=12
+    static ap_uint<7> j;                        // log2(IN_BUS_SIZE)+1=7
     static ap_uint<(I_BUS_b + 7)/8> k;      	// dimensão de TSTRB (AXI)
 
     /* Behaviour */
 
-    last = strm_in.read().data.range(10, 0); 	// FIRST ELEMENT RECEIVED IS THE (LENGTH - 1) <!>
+    last = strm_in.read().data.range(11, 0); 	// FIRST ELEMENT RECEIVED IS THE (LENGTH - 1) <!>
 
     for (i = 0;; i++) {
         tmp = strm_in.read();                   // 1st vector read 	(a)
@@ -102,6 +102,7 @@ void macc(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out)
 				mult = a * b;
 			else
 				mult = 0;
+
 			acc += mult;
 
 			// Multiplier control

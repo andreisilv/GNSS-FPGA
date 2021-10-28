@@ -5,7 +5,7 @@
 #include <ap_axi_sdata.h>
 
 // ** Buses **
-#define I_BUS_b  128
+#define I_BUS_b 64
 #define TKEEP_MASK 0xFFFF
 #define TSTRB_MASK 0xFFFF
 #define O_BUS_b 64
@@ -15,9 +15,9 @@
 #define I_T_B 2                                       		// IN_T_b/8
 
 // ** Vectors **
-#define MAX_IN 8                                            // I_BUS_b/I_T_b
+#define MAX_IN 4                                            // I_BUS_b/I_T_b
 #define MAX_VEC 16384
-#define MAX_MEM 2048                                        // MAX_VEC*(I_T_b/I_BUS_b)
+#define MAX_MEM 4096                                        // MAX_VEC*(I_T_b/I_BUS_b)
 
 // ** Operations **
 #define MULT_SIZE 32                                        // 2*I_T_b
@@ -46,7 +46,7 @@ void macc(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out);
 using namespace std;
 
 #define VEC_SIZE_M 16384
-#define VEC_SIZE 16368
+#define VEC_SIZE 16384
 
 #define MUTED 1
 
@@ -69,11 +69,11 @@ int main()
 
    /* Write data to IP input stream  */
 
-   FILE *II = fopen("../../../../../../lib/sdrlib/vitis-test-trk/IF_GN3S_G03/II.bin", "rb");
-   FILE *QQ = fopen("../../../../../../lib/sdrlib/vitis-test-trk/IF_GN3S_G03/QQ.bin", "rb");
-   FILE *CP = fopen("../../../../../../lib/sdrlib/vitis-test-trk/IF_GN3S_G03/code/PROMPT.bin", "rb");
-   FILE *CE = fopen("../../../../../../lib/sdrlib/vitis-test-trk/IF_GN3S_G03/code/EARLY.bin", "rb");
-   FILE *CL = fopen("../../../../../../lib/sdrlib/vitis-test-trk/IF_GN3S_G03/code/LATE.bin", "rb");
+   FILE *II = fopen("../../../../../../lib/sdrlib/test/data/II.bin", "rb");
+   FILE *QQ = fopen("../../../../../../lib/sdrlib/test/data/QQ.bin", "rb");
+   FILE *CP = fopen("../../../../../../lib/sdrlib/test/data/code/PROMPT.bin", "rb");
+   FILE *CE = fopen("../../../../../../lib/sdrlib/test/data/code/EARLY.bin", "rb");
+   FILE *CL = fopen("../../../../../../lib/sdrlib/test/data/code/LATE.bin", "rb");
 
    FILE *u = II;
    FILE *v = CE;
@@ -92,7 +92,7 @@ int main()
 		   ((short int*) &(tmpa.data))[i] = buffer_u[i];
 		   for(int j = 0; j < I_T_B - !i; j++)
 			   tmpa.strb |= tmpa.strb << 1;
-		   if(!MUTED) printf("strb = %d\n", (int) tmpa.strb);
+		   if(!MUTED) printf("strb = %s\n", tmpa.strb.to_string().c_str());
 	   }
 
 	   if(k >= VEC_SIZE - MAX_IN)
@@ -133,13 +133,20 @@ int main()
    rewind(v);
 
    /* SW */
-   for(int i = 0; i < VEC_SIZE; i+= MAX_IN) {
+   int i;
+   for(i = 0; i < VEC_SIZE - MAX_IN; i+= MAX_IN) {
 	   fread(buffer_u,sizeof(short),MAX_IN,u);
 	   fread(buffer_v,sizeof(short),MAX_IN,v);
 	   for(int j = 0; j < MAX_IN; j++) {
 		   out_sw += buffer_u[j]*buffer_v[j];
 	   }
    }
+   fread(buffer_u,sizeof(short),VEC_SIZE - i,u);
+   fread(buffer_v,sizeof(short),VEC_SIZE - i,v);
+   for(int j = 0; j < VEC_SIZE - i; j++) {
+	   out_sw += buffer_u[j]*buffer_v[j];
+   }
+
    out_sw *= pow(2, -SCALE);
 
    /* Output */

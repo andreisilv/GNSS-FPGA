@@ -1,20 +1,37 @@
 INFO: [HLS 200-10] Running 'C:/opt/Xilinx/Vivado/2019.2/bin/unwrapped/win64.o/vivado_hls.exe'
-INFO: [HLS 200-10] For user 'andre' on host 'iudex-dell' (Windows NT_amd64 version 6.2) on Wed Oct 27 17:01:27 +0100 2021
+INFO: [HLS 200-10] For user 'andre' on host 'iudex-dell' (Windows NT_amd64 version 6.2) on Thu Oct 28 21:29:02 +0100 2021
 INFO: [HLS 200-10] In directory 'D:/andre/Documents/tese/projeto/hardware'
-Sourcing Tcl script 'D:/andre/Documents/tese/projeto/hardware/mixcarr.HLS/solution1/export.tcl'
-INFO: [HLS 200-10] Opening project 'D:/andre/Documents/tese/projeto/hardware/mixcarr.HLS'.
-INFO: [HLS 200-10] Opening solution 'D:/andre/Documents/tese/projeto/hardware/mixcarr.HLS/solution1'.
+Sourcing Tcl script 'D:/andre/Documents/tese/projeto/hardware/macc.HLS/solution/csim.tcl'
+INFO: [HLS 200-10] Opening project 'D:/andre/Documents/tese/projeto/hardware/macc.HLS'.
+INFO: [HLS 200-10] Opening solution 'D:/andre/Documents/tese/projeto/hardware/macc.HLS/solution'.
 INFO: [SYN 201-201] Setting up clock 'default' with a period of 10ns.
 INFO: [HLS 200-10] Setting target device to 'xc7z010-clg400-1'
-INFO: [IMPL 213-8] Exporting RTL as a Vivado IP.
-
-****** Vivado v2019.2 (64-bit)
-  **** SW Build 2708876 on Wed Nov  6 21:40:23 MST 2019
-  **** IP Build 2700528 on Thu Nov  7 00:09:20 MST 2019
-    ** Copyright 1986-2019 Xilinx, Inc. All Rights Reserved.
-
-source run_ippack.tcl -notrace
-INFO: [IP_Flow 19-234] Refreshing IP repositories
-INFO: [IP_Flow 19-1704] No user IP repositories specified
-INFO: [IP_Flow 19-2313] Loaded Vivado IP repository 'C:/opt/Xilinx/Vivado/2019.2/data/ip'.
-INFO: [Common 17-206] Exiting Vivado at Wed Oct 27 17:01:40 2021...
+INFO: [SIM 211-2] *************** CSIM start ***************
+INFO: [SIM 211-4] CSIM will launch GCC as the compiler.
+   Compiling ../../../../../src/macc.cpp in debug mode
+   Generating csim.exe
+In file included from C:/opt/Xilinx/Vivado/2019.2/include/floating_point_v7_0_bitacc_cmodel.h:143:0,
+                 from C:/opt/Xilinx/Vivado/2019.2/include/hls_fpo.h:186,
+                 from C:/opt/Xilinx/Vivado/2019.2/include/hls_half.h:44,
+                 from C:/opt/Xilinx/Vivado/2019.2/include/etc/ap_private.h:90,
+                 from C:/opt/Xilinx/Vivado/2019.2/include/ap_common.h:641,
+                 from C:/opt/Xilinx/Vivado/2019.2/include/ap_int.h:54,
+                 from ../../../../../src/macc.cpp:3:
+C:/opt/Xilinx/Vivado/2019.2/include/gmp.h:62:0: warning: "__GMP_LIBGMP_DLL" redefined
+ #define __GMP_LIBGMP_DLL  0
+ 
+In file included from C:/opt/Xilinx/Vivado/2019.2/include/hls_fpo.h:186:0,
+                 from C:/opt/Xilinx/Vivado/2019.2/include/hls_half.h:44,
+                 from C:/opt/Xilinx/Vivado/2019.2/include/etc/ap_private.h:90,
+                 from C:/opt/Xilinx/Vivado/2019.2/include/ap_common.h:641,
+                 from C:/opt/Xilinx/Vivado/2019.2/include/ap_int.h:54,
+                 from ../../../../../src/macc.cpp:3:
+C:/opt/Xilinx/Vivado/2019.2/include/floating_point_v7_0_bitacc_cmodel.h:135:0: note: this is the location of the previous definition
+ #define __GMP_LIBGMP_DLL 1
+ 
+OUTPUT HW:
+-623.469
+OUTPUT SW:
+-623.469
+INFO: [SIM 211-1] CSim done with 0 errors.
+INFO: [SIM 211-3] *************** CSIM finish ***************

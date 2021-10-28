@@ -73,6 +73,10 @@ const float pi = 3.1415926535897932384626; // PI ~ 3.141592 = 0b011.001001000011
  *
 */
 
+// ** CORRELATOR MEM **
+
+#define MAX_VEC 16384
+
 int cosseno(ap_uint<INDEX_b> index)
 {
 	if(index == 8 || index == 24)
@@ -131,6 +135,7 @@ void mixcarr(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out)
     // control
 
     ap_int<LENGTH_REGISTER_b - 1> last, processed = 0;
+    ap_int<11/*log(MAX_VEC)*/> correlated = 0;
 	ap_int<1> dtype;
 	ap_fixed<64,20> phase;
 	ap_fixed<64,20> pstep;
@@ -177,6 +182,15 @@ void mixcarr(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out)
 		 * and differentiate between complex and real in how many outputs are
 		 * calculated.
 		 */
+
+		if(correlated++ == 0) {
+			out.data.range(31, 0) = last;
+			out.data.range(95, 64) = last;
+			out.keep = 0x0F0F;
+			out.strb = 0x0F0F;
+			out.last = 1;
+			strm_out.write(out);
+		}
 
 		j = 0; k = 0;
 		for (i = 0; i < I_BUS_b; i += I_T_b * 2) {
@@ -258,7 +272,7 @@ void mixcarr(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out)
 			strb = 0;
 			//printf("WRITTEN out.strb = %s\n", out.strb.to_string().c_str());
 			out.last = 0;
-			if(processed + 1 > last)
+			if((processed + 1 > last) || (correlated == 0))
 				out.last = 1;
 			//printf("%s > %s = %s\n", (processed + 1).to_string().c_str(), last.to_string().c_str(), out.last.to_string().c_str());
 			strm_out.write(out);
