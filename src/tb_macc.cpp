@@ -5,40 +5,29 @@
 #include <ap_axi_sdata.h>
 
 // ** Buses **
-#define I_BUS_b 64
-#define TKEEP_MASK 0xFFFF
-#define TSTRB_MASK 0xFFFF
+#define I_BUS_b  64
 #define O_BUS_b 64
 
 // ** Input Type **
 #define I_T_b 16
-#define I_T_B 2                                       		// IN_T_b/8
+#define I_T_B 2                                       // IN_T_b/8
+#define O_SCALE 5
 
 // ** Vectors **
-#define MAX_IN 4                                            // I_BUS_b/I_T_b
-#define MAX_VEC 16384
-#define MAX_MEM 4096                                        // MAX_VEC*(I_T_b/I_BUS_b)
+#define MAX_IN 4                                      // I_BUS_b/I_T_b
 
 // ** Operations **
-#define MULT_SIZE 32                                        // 2*I_T_b
-#define ACC_SIZE 43                                         // MULT_SIZE + 11 // log2(MAX_MEM)=11
+#define MULT_SIZE 32                                  // 2*I_T_b
+#define ACC_SIZE 64                                   // MULT_SIZE + ?
 
 // ** IO **
 typedef struct ap_axis<I_BUS_b, 0, 0, 0> in_t;
-typedef struct {
-	ap_fixed<O_BUS_b, ACC_SIZE> data;
-	ap_uint<1> last;
-} out_t;
-
-// * Other *
-#define SCALE 5
+typedef struct ap_axis<O_BUS_b, 0, 0, 0> out_t;
 
 // Top-level function
-void macc(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out);
+void macc(hls::stream<in_t> &strm_in_A, hls::stream<in_t> &strm_in_B, hls::stream<out_t> &strm_out);
 
 // --------------------------- Test Bench  ----------------------------------
-
-#define THRESHOLD 0.000001
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -46,124 +35,135 @@ void macc(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out);
 using namespace std;
 
 #define VEC_SIZE_M 16384
-#define VEC_SIZE 16384
+#define VEC_SIZE 16368
 
-#define MUTED 1
+#define MUTED 0
 
 int main()
 {
-   hls::stream<in_t> in;
-   hls::stream<out_t> out;
-   int err = 0;
+	/* TESTS
+	ap_int<32> a = 32;
+	ap_fixed<32,32-5> b;
+	b.range(31,0) = a.range(31,0);
+	printf("%f = %s\n", a.to_double(), a.to_string().c_str());
+	printf("%f = %s\n", b.to_double(), b.to_string().c_str());
+	printf("%f = %s\n", a.to_double(), ap_fixed<32,32-5>(a.range(31,0)).to_string().c_str());
+	exit(-1);
+	 */
 
-   double out_sw = 0;
+	hls::stream<in_t> strm_in_A, strm_in_B;
+	hls::stream<out_t> strm_out;
+	in_t A, B;
+	out_t O;
 
-   in_t last, tmpa, tmpb;
-   out_t tmpo;
+	ap_fixed<ACC_SIZE, ACC_SIZE - O_SCALE> tmp;
+	double out_hw = 0;
+	double out_sw = 0;
+	int err = 0;
 
-   last.data = (VEC_SIZE*I_T_b + I_BUS_b - 1)/I_BUS_b - 1;
-   last.strb = 0x000F; // integer
-   last.keep = TKEEP_MASK;
-   last.last = 1;
-   in.write(last);
+	FILE *II = fopen("../../../../../../data/sample/II.bin", "rb");
+	FILE *QQ = fopen("../../../../../../data/sample/QQ.bin", "rb");
+	FILE *CP = fopen("../../../../../../data/sample/code/PROMPT.bin", "rb");
+	FILE *CE = fopen("../../../../../../data/sample/code/EARLY.bin", "rb");
+	FILE *CL = fopen("../../../../../../data/sample/code/LATE.bin", "rb");
 
-   /* Write data to IP input stream  */
+	FILE *u = II;
+	FILE *v = CE;
 
-   FILE *II = fopen("../../../../../../lib/sdrlib/test/data/II.bin", "rb");
-   FILE *QQ = fopen("../../../../../../lib/sdrlib/test/data/QQ.bin", "rb");
-   FILE *CP = fopen("../../../../../../lib/sdrlib/test/data/code/PROMPT.bin", "rb");
-   FILE *CE = fopen("../../../../../../lib/sdrlib/test/data/code/EARLY.bin", "rb");
-   FILE *CL = fopen("../../../../../../lib/sdrlib/test/data/code/LATE.bin", "rb");
+	if(u == NULL || v == NULL)
+		return -1;
 
-   FILE *u = II;
-   FILE *v = CE;
+	/* Write data to IP input stream  */
 
-   if(u == NULL || v == NULL)
-	   return -1;
+	short buffer_u[MAX_IN];
+	short buffer_v[MAX_IN];
 
-   short buffer_u[MAX_IN];
-   short buffer_v[MAX_IN];
+	if(!MUTED) printf("U\n");
+	for(int k = 0; k < VEC_SIZE; k += MAX_IN) {
+		fread(buffer_u,sizeof(short),MAX_IN,u);
+		fread(buffer_v,sizeof(short),MAX_IN,v);
+		A.strb = 1;
+		B.strb = 1;
+		for(int i = 0; (i < MAX_IN) && (k + i < VEC_SIZE); i++) {
+			((short int*) &(A.data))[i] = buffer_u[i];
+			((short int*) &(B.data))[i] = buffer_v[i];
+			for(int j = 0; j < I_T_B - !i; j++)
+				A.strb |= A.strb << 1;
 
-   if(!MUTED) printf("U\n");
-   for(int k = 0; k < VEC_SIZE; k += MAX_IN) {
-	   fread(buffer_u,sizeof(short),MAX_IN,u);
-	   tmpa.strb = 1;
-	   for(int i = 0; (i < MAX_IN) && (k + i < VEC_SIZE); i++) {
-		   ((short int*) &(tmpa.data))[i] = buffer_u[i];
-		   for(int j = 0; j < I_T_B - !i; j++)
-			   tmpa.strb |= tmpa.strb << 1;
-		   if(!MUTED) printf("strb = %s\n", tmpa.strb.to_string().c_str());
-	   }
+			B.strb = A.strb;
 
-	   if(k >= VEC_SIZE - MAX_IN)
-		   tmpa.last = 1;
+			if(!MUTED) printf("strb = %s\n", A.strb.to_string().c_str());
+		}
 
-	   for(int i = 0; (i < MAX_IN) && (k + i < VEC_SIZE); i++)
-		   if(!MUTED) printf("%d ", ((short int*) &(tmpa.data))[i]);
-	   if(!MUTED) printf("\n");
+		if(k >= VEC_SIZE - MAX_IN)
+			A.last = 1;
+		else
+			A.last = 0;
 
-	   tmpa.keep = 0xFF;
-	   in.write(tmpa);
-   }
+		B.last = A.last;
 
-   if(!MUTED) printf("V\n");
-   for(int k = 0; k < VEC_SIZE; k += MAX_IN) {
-	   tmpb.strb = 1;
-	   fread(buffer_v,sizeof(short),MAX_IN,v);
-	   for(int i = 0; (i < MAX_IN) && (k + i < VEC_SIZE); i++) {
-		   ((short int*) &(tmpb.data))[i] = buffer_v[i];
-		   for(int j = 0; j < I_T_B - !i; j++)
-			   tmpb.strb |= tmpb.strb << 1;
-	   }
-	   if(k >= VEC_SIZE - MAX_IN)
-		   tmpb.last = 1;
+		for(int i = 0; (i < MAX_IN) && (k + i < VEC_SIZE); i++) {
+			if(!MUTED) printf("%d ", ((short int*) &(A.data))[i]);
+			if(!MUTED) printf("\t\t");
+			if(!MUTED) printf("%d ", ((short int*) &(B.data))[i]);
+			if(!MUTED) printf("\n");
+		}
 
-	   for(int i = 0; (i < MAX_IN) && (k + i < VEC_SIZE); i++)
-		   if(!MUTED) printf("%d ", ((short int*) &(tmpb.data))[i]);
-	   if(!MUTED) printf("\n");
+		A.keep = 0xFF;
+		B.keep = 0xFF;
 
-	   in.write(tmpb);
-   }
+		strm_in_A.write(A);
+		strm_in_B.write(B);
+	}
 
-   /* HW */
-   macc(in, out);
-   tmpo = out.read();
+	/* HW */
 
-   rewind(u);
-   rewind(v);
+	macc(strm_in_A, strm_in_B, strm_out);
 
-   /* SW */
-   int i;
-   for(i = 0; i < VEC_SIZE - MAX_IN; i+= MAX_IN) {
-	   fread(buffer_u,sizeof(short),MAX_IN,u);
-	   fread(buffer_v,sizeof(short),MAX_IN,v);
-	   for(int j = 0; j < MAX_IN; j++) {
-		   out_sw += buffer_u[j]*buffer_v[j];
-	   }
-   }
-   fread(buffer_u,sizeof(short),VEC_SIZE - i,u);
-   fread(buffer_v,sizeof(short),VEC_SIZE - i,v);
-   for(int j = 0; j < VEC_SIZE - i; j++) {
-	   out_sw += buffer_u[j]*buffer_v[j];
-   }
+	O = strm_out.read();
 
-   out_sw *= pow(2, -SCALE);
+	tmp.range(ACC_SIZE - 1, 0) = O.data.range(O_BUS_b - 1, 0);
+	out_hw = tmp.to_double();
 
-   /* Output */
-   cout << "OUTPUT HW:" << endl;
-   cout << tmpo.data << endl;
-   cout << "OUTPUT SW:" << endl;
-   cout << out_sw << endl;
+	if(!MUTED) printf("OUT_HW_64INT: %s\n", O.data.to_string().c_str());
 
-   /* Check */
-   err += (tmpo.data.to_double() - out_sw) > THRESHOLD;
+	rewind(u);
+	rewind(v);
 
-   /* Close */
-   fclose(II);
-   fclose(QQ);
-   fclose(CP);
-   fclose(CE);
-   fclose(CL);
+	/* SW */
+	int i;
+	for(i = 0; i < VEC_SIZE - MAX_IN; i+= MAX_IN) {
+		fread(buffer_u,sizeof(short),MAX_IN,u);
+		fread(buffer_v,sizeof(short),MAX_IN,v);
+		for(int j = 0; j < MAX_IN; j++) {
+			out_sw += buffer_u[j]*buffer_v[j];
+		}
+	}
+	fread(buffer_u,sizeof(short),VEC_SIZE - i,u);
+	fread(buffer_v,sizeof(short),VEC_SIZE - i,v);
+	for(int j = 0; j < VEC_SIZE - i; j++) {
+		out_sw += buffer_u[j]*buffer_v[j];
+	}
 
-   return err;
+	out_sw *= pow(2, -O_SCALE);
+
+	/* Output */
+	cout << "OUTPUT HW:" << endl;
+	cout << out_hw << endl;
+	cout << "OUTPUT SW:" << endl;
+	cout << out_sw << endl;
+
+	/* Check */
+	err += (int) (out_hw - out_sw);
+
+	if(!MUTED) printf("Error = %f\n", out_hw - out_sw);
+
+	/* Close */
+	fclose(II);
+	fclose(QQ);
+	fclose(CP);
+	fclose(CE);
+	fclose(CL);
+
+	return err;
 }

@@ -71,14 +71,15 @@ int main()
 {
    hls::stream<in_t> in;
    hls::stream<out_t> out;
+
    int err, errl;
 
    in_t arg, tmpa, tmpb;
    out_t tmpo;
 
-   FILE *signal = fopen("../../../../../../lib/sdrlib/test/data/signal.bin", "rb");
-   FILE *fII = fopen("../../../../../../lib/sdrlib/test/data/II.bin", "rb");
-   FILE *fQQ = fopen("../../../../../../lib/sdrlib/test/data/QQ.bin", "rb");
+   FILE *signal = fopen("../../../../../../data/sample/signal.bin", "rb");
+   FILE *fII = fopen("../../../../../../data/sample/II.bin", "rb");
+   FILE *fQQ = fopen("../../../../../../data/sample/QQ.bin", "rb");
 
    char buffer[I_BUS_b/I_T_b];
    short II[O_BUS_b/O_T_b];
@@ -87,8 +88,8 @@ int main()
    int bus_size = I_BUS_b/I_T_b;
    int i;
 
-   if(signal == NULL)
-	   return -1;
+   if(signal == NULL || fII == NULL || fQQ == NULL)
+	   exit(-1);
 
    /* Arguments */
    int last = (VEC_SIZE*I_T_b + I_BUS_b - 1)/I_BUS_b - 1;
@@ -137,6 +138,11 @@ int main()
    arg.data = phase_step.range(31,0);
    in.write(arg);
    arg.data = phase_step.range(63,32);
+   in.write(arg);
+
+   // last out
+
+   arg.data = 1;
    in.write(arg);
 
    /* Write Data  */

@@ -5,117 +5,107 @@
 #include <ap_axi_sdata.h>
 
 // ** Buses **
-#define I_BUS_b  64
-#define TKEEP_MASK 0xFFFF
-#define TSTRB_MASK 0xFFFF
+#define I_BUS_b 64
 #define O_BUS_b 64
 
 // ** Input Type **
 #define I_T_b 16
-#define I_T_B 2                                       		// IN_T_b/8
+#define LOG_I_T_b 4
+#define O_SCALE 5
 
 // ** Vectors **
-#define MAX_IN 4                                            // I_BUS_b/I_T_b
-#define MAX_VEC 16384
-#define MAX_MEM 4096                                        // MAX_VEC*(I_T_b/I_BUS_b)
+#define MAX_IN (I_BUS_b/I_T_b)
+#define LOG_MAX_IN 2
 
 // ** Operations **
-#define MULT_SIZE 32                                        // 2*I_T_b
-#define ACC_SIZE 43                                         // MULT_SIZE + 11 // log2(MAX_MEM)=11
+#define MULT_SIZE (2*I_T_b)
+#define ACC_SIZE 64
 
 // ** IO **
 typedef struct ap_axis<I_BUS_b, 0, 0, 0> in_t;
-typedef struct {
-	ap_fixed<O_BUS_b, ACC_SIZE> data;
-	ap_uint<1> last;
-} out_t;
-
-// * Other *
-#define SCALE 5
-
-// ** Memory **
-static ap_uint<I_BUS_b> localmem[MAX_MEM];
+typedef struct ap_axis<O_BUS_b, 0, 0, 0> out_t;
 
 /* 	** Top-level function **
  *
  *	Produto Interno
  *	strm_in: 	vectors: a,b
  *	strm_out:	scalar: a.b
- *	len:		len of input vector (assuming a vector 128 bits wide, then should be 1/8 of the short int vector size)
  */
-void macc(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out)
+
+void macc(hls::stream<in_t> &strm_in_A, hls::stream<in_t> &strm_in_B, hls::stream<out_t> &strm_out)
 {
 #pragma HLS interface ap_ctrl_none port=return
-#pragma HLS interface axis port=strm_in
+#pragma HLS interface axis port=strm_in_A
+#pragma HLS interface axis port=strm_in_B
 #pragma HLS interface axis port=strm_out
 
     // ** IO **
-    in_t tmp;
-    out_t tmpo;
+    in_t A, B;
+    out_t O;
 
     // ** Operands **
-    ap_int<I_T_b> a, b;
+    ap_int<I_T_b> b[MAX_IN], d[MAX_IN];
+    static ap_int<1> z[MAX_IN];
 
     // ** Operations **
-    ap_int<MULT_SIZE> mult;
-    ap_int<ACC_SIZE> acc = 0;
-
-    // ** Auxiliar **
-    ap_uint<12> last; 							// log2(MAX_MEM)=12
+    ap_int<ACC_SIZE> acc[MAX_IN];
 
     // control
-    static ap_uint<12> h, i;                    // log2(MAX_VEC)=12
-    static ap_uint<7> j;                        // log2(IN_BUS_SIZE)+1=7
-    static ap_uint<(I_BUS_b + 7)/8> k;      	// dimensão de TSTRB (AXI)
+    static ap_uint<8> i, j;                 			// log2(IN_BUS_SIZE)+1=7+1
+    static ap_uint<8> middle, lap, mod;
 
     /* Behaviour */
 
-    last = strm_in.read().data.range(11, 0); 	// FIRST ELEMENT RECEIVED IS THE (LENGTH - 1) <!>
+	O.data = 0; // reset accumulator
 
-    for (i = 0;; i++) {
-        tmp = strm_in.read();                   // 1st vector read 	(a)
-        localmem[i] = tmp.data;
+	do {
+		#pragma HLS loop_tripcount min=256 max=4096 // directive only affects reports, not synthesis
 
-        if(i == last)
-			break;
-    }
+		//#pragma HLS loop_flatten (no additional effect, all the inner loops are unrolled correctly)
+		#pragma HLS pipeline II=1 // (side effect: splits loop unroll 4 => 2 + 2)
 
-	for (i = 0;; i++) {
-		tmp = strm_in.read();            		// 2nd vector read	(b)
+		A = strm_in_A.read();            				// 1st vector read	(b)
+		B = strm_in_B.read();            				// 2nd vector read	(d)
 
-		/* TSTRB : sets which BUS bytes are valid; each bit indicates one valid byte.
-		 * I_T_B(=2): k has one HIGH bit corresponding to the less significant byte position associated to the iteration
-		 * => AND OPERATION == 0 only when the integer is set as invalid in TSTRB.
-		 */
-
-		k = 1;
-		for (j = 0; j < I_BUS_b; j += I_T_b) {
-		#pragma HLS unroll // loop iterations are independent (except for the accumulation), which allows loop unrolling
-		#pragma HLS pipeline
+		for (i = 0; i < I_BUS_b; i += I_T_b) {
+			#pragma HLS unroll skip_exit_check		 	// loop iterations are independent allowing loop unrolling
 
 			// Operands
-			a = localmem[i].range(j + 15, j);
-			b = tmp.data.range(j + 15, j);
+			j = i.range(7, LOG_I_T_b);					// 'j': represents the current element being processed
+			b[j] = A.data.range(i + I_T_b - 1, i);
+			d[j] = B.data.range(i + I_T_b - 1, i);
+			// TSTRB is an AXI signal - it has a bit for each input byte - each bit at HIGH indicates the corresponding byte contains data
+			z[j] = A.strb.get_bit(i.range(7, 3)) & B.strb.get_bit(i.range(7, 3));
 
 			// Dot product
-			if ((tmp.strb & k) != 0)
-				mult = a * b;
-			else
-				mult = 0;
-
-			acc += mult;
-
-			// Multiplier control
-			k = k << I_T_B;
+			acc[j] = (b[j] * d[j]) & z[j]; // 1 DSP
 		}
 
-		if(i == last)
-			break;
-	}
+		/* Because it's simple to implement modular operations of base 2 in hardware
+		 * a ring can be used to do the summation, where each opposite element
+		 * is summed. Then, the ring size is divided by two and the process repeated.
+		*/
+		for(i = 0; i < MAX_IN; i++) {
+			#pragma HLS unroll skip_exit_check
+
+			lap = i.range(7, LOG_MAX_IN - 1);
+			middle = (MAX_IN/2) >> lap;
+			mod = LOG_MAX_IN - 1 - lap;
+			acc[i.range(mod, 0)] += acc[(i + middle).range(mod, 0)];
+			/* HARDCODED
+			acc[0] += acc[2];
+			acc[1] += acc[3];
+			acc[0] += acc[1];
+			*/
+		}
+
+		O.data += acc[0];
+
+	} while(!A.last /* | !B.last */);
 
 	// Results
-	tmpo.data = acc;
-	tmpo.data = tmpo.data >> SCALE;
-	tmpo.last = 1;
-	strm_out.write(tmpo);
+	O.keep = 0xFF;
+	O.strb = 0xFF;
+	O.last = 1;
+	strm_out.write(O);
 }

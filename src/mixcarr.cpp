@@ -8,6 +8,8 @@
 // IO Type
 #define I_T_b			8
 #define O_T_b			16	// > ADD_BUS_b
+#define I_T_B			(I_T_b/8)
+#define O_T_B			(O_T_b/8)
 
 #define O_T_MASK  0x3
 #define LOG_I_T_b 3
@@ -104,12 +106,15 @@ int cosseno(ap_uint<INDEX_b> index)
 *
 */
 
+//#define DEBUGGING
+
 void mixcarr(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out)
 {
+#ifndef DEBUGGING
+#pragma HLS interface ap_ctrl_none 	port=return
+#endif
 #pragma HLS interface axis 			port=strm_in
 #pragma HLS interface axis 			port=strm_out
-#pragma HLS interface ap_ctrl_none 	port=return
-
 	/*
 	// DEBUG LOCAL TABLE
 	for(int i = -32; i < 64; i++)
@@ -135,43 +140,51 @@ void mixcarr(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out)
     // control
 
     ap_int<LENGTH_REGISTER_b - 1> last, processed = 0;
-    ap_int<11/*log(MAX_VEC)*/> correlated = 0;
 	ap_int<1> dtype;
-	ap_fixed<64,20> phase;
+	ap_fixed<64,20> phase0, phase;
 	ap_fixed<64,20> pstep;
 	ap_int<INDEX_b> index;
+	ap_int<8> n_out;
 
-	static ap_uint<LOG_I_BUS_b+1> i;
-    static ap_uint<LOG_O_BUS_b+1> j;
-    static ap_uint<O_TSTRB_b/2 + 1> strb; // +1 to have space for the carry  // SHIFT REGISTER	[CARRY=INPUT_TSTRB(k)]->[ ]->[ ]->[ ]->[ ]->[ ]->[ ]->[ ]->[ ]
-    static ap_uint<4 /*log(O_TSTRB_b/2 + 1)=log(9)~4*/> k;
-    static ap_uint<8 /*sufficient*/> w;
+	ap_uint<LOG_I_BUS_b+1> i;
+    ap_uint<LOG_O_BUS_b+1> j;
+    ap_uint<8 /*sufficient*/> k;
+    ap_uint<O_TSTRB_b/2> strb;
+	ap_uint<1> in_strb;
 
 	/*
 	 * (!) ARGUMENTS READ ONE AT A TIME (for a 32 bits input)
 	 */
 
 	// 1st: last = length - 1
-	in = strm_in.read();
+	in = strm_in.read(); // 		READ
 	last = in.data;
 
 	// 2nd: data type
-	in = strm_in.read();
+	in = strm_in.read(); // 		READ
 	dtype = in.data.get_bit(0);
 
 	// 3rd: carrier phase (of width 64, read in two steps; in order to increase precision)
-	in = strm_in.read();
-	phase.range(31,0) = in.data;
-	in = strm_in.read();
-	phase.range(63,32) = in.data;
+	in = strm_in.read(); // 		READ
+	phase0.range(31,0) = in.data;
+	in = strm_in.read(); // 		READ
+	phase0.range(63,32) = in.data;
+	phase = phase0;
 
 	// 4th: phase step (of width 64, read in two steps; in order to increase precision)
-	in = strm_in.read();
+	in = strm_in.read(); // 		READ
 	pstep.range(31,0) = in.data;
-	in = strm_in.read();
+	in = strm_in.read(); // 		READ
 	pstep.range(63,32) = in.data;
 
-	do {// while there are real/complex elements to process
+	// 5th: number of output vectors
+	in = strm_in.read(); // 		READ
+	n_out = in.data;
+
+	// while there are real/complex elements to process
+
+	while(n_out) {
+		#pragma HLS loop_tripcount min=512 max=8192 // directive only affects reports, not synthesis
 		in = strm_in.read();
 
 		/* LOOP
@@ -183,23 +196,11 @@ void mixcarr(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out)
 		 * calculated.
 		 */
 
-		if(correlated++ == 0) {
-			out.data.range(31, 0) = last;
-			out.data.range(95, 64) = last;
-			out.keep = 0x0F0F;
-			out.strb = 0x0F0F;
-			out.last = 1;
-			strm_out.write(out);
-		}
-
-		j = 0; k = 0;
+		j = 0;
 		for (i = 0; i < I_BUS_b; i += I_T_b * 2) {
-			#pragma HLS unroll
+			//#pragma HLS unroll
 			#pragma HLS inline region
-			//#pragma HLS pipeline
-
-			if(j >= O_BUS_b/2)
-				j = 0;
+			#pragma HLS pipeline
 
 			// ** Operands **
 
@@ -230,53 +231,64 @@ void mixcarr(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out)
 			   [                    128b                   ]
 			   [      IN PHASE       ][   IN QUADRATURE    ]
 			*/
-			for(w = 0; w < O_T_b/8; w ++) {
-				#define HLS unroll
-				strb.set_bit(8, in.strb.get_bit(k)); 											// SHIFT REGISTER	[CARRY=TSTRB(k)]->[ ]->[ ]->[ ]->[ ]->[ ]->[ ]->[ ]->[ ]
-				strb = strb >> 1;
-			}
-			//printf("strb = %s\n", strb.to_string().c_str());
+			
+			// get a new index for the input TSTRB signal
+			in_strb = in.strb.get_bit(i.range(LOG_I_BUS_b, LOG_I_T_b));
 
-			if(dtype == COMPLEX) {
+			if(dtype == COMPLEX) {	
 				add[0] = mul[0] - mul[3];
 				add[1] = mul[1] - mul[2];
 
 				out.data.range(j + O_T_b - 1, j) = add[0]; 										// II[i]: 	In quadrature component
 				out.data.range(O_BUS_b/2 + j + O_T_b - 1, O_BUS_b/2 + j) = add[1];				// QQ[i]: 	In phase component
-			} else {
-				for(w = 0; w < O_T_b/8; w ++) {
-					#define HLS unroll
-					strb.set_bit(8, in.strb.get_bit(k+I_T_b/8));								// SHIFT REGISTER	[CARRY=TSTRB(k)]->[ ]->[ ]->[ ]->[ ]->[ ]->[ ]->[ ]->[ ]
-					strb = strb >> 1;
-				}
-				//printf("strb = %s\n", strb.to_string().c_str());
 
+				// get a new index from 'i' that indexes TSTRB, it jumps at each iteration as much as the number of output bytes
+				k = i.range(LOG_I_BUS_b, LOG_I_T_b - (LOG_O_T_b - LOG_I_T_b - 1));
+
+				// write output TSTRB. if in_strb = 1 the result should be an all '1's number
+				strb.range(k + O_T_B - 1, k) = in_strb ? (2 << O_T_B) - 1 : 0;
+
+				j += O_T_b;
+				phase += pstep;
+			} else {
 				out.data.range(j + O_T_b - 1, j) =  mul[0]; 									// II[i]: 	In phase component
 				out.data.range(O_BUS_b/2 + j + O_T_b - 1, O_BUS_b/2 + j) = mul[1];	 			// QQ[i]: 	In quadrature component
 				out.data.range(j + 2*O_T_b - 1, O_T_b + j) = mul[2]; 							// II[i+1]: In phase component
 				out.data.range(O_BUS_b/2 + j + 2*O_T_b - 1, O_BUS_b/2 + O_T_b + j) = mul[3]; 	// QQ[i+1]: In quadrature component
-			}
 
-			// Step
-			j += O_T_b << (dtype == REAL);
-			k += I_T_b/4 /* 2*(I_T_b/8) */;
-			phase += pstep << (dtype == REAL);
+				// get a new index from 'i' that indexes TSTRB, it jumps at each iteration as much as the number of output bytes
+				k = i.range(LOG_I_BUS_b, LOG_I_T_b - (LOG_O_T_b - LOG_I_T_b));
+
+				// write output TSTRB. if in_strb = 1 the result should be an all '1's number
+				strb.range(k + (O_T_B << 1) - 1, k) = in_strb ? (2 << (O_T_B + 1)) - 1 : 0;
+
+				j += O_T_b << 1;
+				phase += pstep << 1;
+			}
+		
+			//printf("strb = %s\n", strb.to_string().c_str());
 		}
+
+		processed++;
 
 		// Output
 		if(j >= O_BUS_b/2) {
+
+			out.last = 0;
 			out.keep = TKEEP_MASK;
-			//out.strb = TSTRB_MASK;
 			out.strb.range(O_TSTRB_b - 1, O_TSTRB_b/2) = strb; // II and QQ have the same TSTRB
 			out.strb.range(O_TSTRB_b/2 - 1, 0) = strb;
 			strb = 0;
-			//printf("WRITTEN out.strb = %s\n", out.strb.to_string().c_str());
-			out.last = 0;
-			if((processed + 1 > last) || (correlated == 0))
+
+			if(processed > last) {
 				out.last = 1;
-			//printf("%s > %s = %s\n", (processed + 1).to_string().c_str(), last.to_string().c_str(), out.last.to_string().c_str());
+				processed = 0;
+				phase = phase0;
+
+				n_out--;
+			}
+
 			strm_out.write(out);
 		}
-
-	} while(processed++ < last);
+	};
 }
