@@ -1,0 +1,11 @@
+# Save/Load Waveforms
+
+open_hw_manager
+	opens the hardware manager
+
+write_hw_ila_data
+	save current waveform opened in the hardware manager
+read_hw_ila_data
+	load saved waveform into the hardware manager
+display_hw_ila_data
+	display loaded waveform

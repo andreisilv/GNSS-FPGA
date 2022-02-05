@@ -16,137 +16,90 @@
 #define IO_T_B 2
 #define LOG_IO_T_b 4
 
-#define MAX_SUPPORTED_EL 1024
-#define LOG_MAX_SUPPORTED_EL 14
-
 typedef struct ap_axis<I_BUS_b, 0, 0, 0> in_t;
 typedef struct ap_axis<O_BUS_b, 0, 0, 0> out_t;
 
-ap_int<IO_T_b> localmem[MAX_SUPPORTED_EL];
-
-void rescode(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out)
+void rescode(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out, ap_fixed<64,16> *step, ap_fixed<64,16> *offset, ap_int<32> *len, ap_int<32> *codelen)
 {
 #pragma HLS interface ap_ctrl_none port=return
 #pragma HLS interface axis port=strm_in
 #pragma HLS interface axis port=strm_out
+#pragma HLS interface s_axilite port=step bundle=args
+#pragma HLS interface s_axilite port=offset bundle=args
+#pragma HLS interface s_axilite port=len bundle=args
+#pragma HLS interface s_axilite port=codelen bundle=args
+
+	if(*offset < 0) *offset += codelen;
+	else if(*offset > codelen) *offset -= codelen;
 
 	// IO
 
 	in_t in;
 	out_t out;
 
-	// Operands
+	// aux
 
-	ap_fixed<64,16> offset;
+	ap_int<16> j, k, h;
 
-	// Auxiliar
+	ap_fixed<64,16> off1, off2 = *offset;
+	ap_int<32> ln = *len;
 
-	ap_int<16> i;
+	std::cout << *step << std::endl;
+	std::cout << off2 << std::endl;
+	std::cout << ln << std::endl;
 
-	ap_int<15> m;
-
-	ap_int<16> csize, np2;
-	ap_int<24> lst;
-
-	ap_uint<LOG_O_BUS_b+1> write = 0;
-	ap_uint<1> stop_internal = 0;
-
-	/*
-	 *  ARGUMENTS
-	*/
-
-	/*** READ ***/
-	in = strm_in.read();
-
-	/* 1st : LAST OUTPUT INDEX = OUTPUT LENGTH - 1*/
-	ap_int<24> last = in.data;
-
-	/*** READ ***/
-	in = strm_in.read();
-
-	/* 2nd : CODE PHASE !! OF THE FIRST EARLY CODE !! = offset_0 + T_s * (- number_of_early_codes) * code_displacement */
-	ap_fixed<64,16> offset_0; // Q16.48
-	offset_0.range(31,0) = in.data;
-
-	/*** READ ***/
-	in = strm_in.read();
-
-	offset_0.range(63,32) = in.data;
-
-	/*** READ ***/
-	in = strm_in.read();
-
-	/* 3rd : SAMPLING PERIOD __IN CHIPS (CODE BITS)__ */
-	ap_fixed<64,16> T_s = 0; // Q16.48
-	T_s.range(31,0) = in.data;
-
-	/*** READ ***/
-	in = strm_in.read();
-
-	T_s.range(47,32) = in.data.range(15,0);
-
-	/* 4th : DISTANCE BETWEEN CODES IN SAMPLES (EARLY, PROMPT and LATE CODES) */
-	ap_int<8> code_displacement = in.data.range(23,16); // in samples
-
-	/* 5th : NUMBER OF CODE COPIES (e.g. EARLY, PROMPT and LATE) */
-	ap_int<8> m_codes = in.data.range(31,24);
-
-	csize = 0;
-	m = 0;
-
-	// Save the input code in local memory
-	do {
+	// Discard previous code chips
+	for(off1 = 0; off1.range(63,48) < off2.range(63,48); off1 += (I_BUS_b/IO_T_b))
 		in = strm_in.read();
-		for(i = 0; i < I_BUS_b; i += IO_T_b) {
-			#pragma HLS unroll
-			localmem[csize.range(LOG_MAX_SUPPORTED_EL - 1, 0)] = ap_int<IO_T_b>(in.data.range(i + IO_T_b - 1, i));
+	in = strm_in.read();
 
-			// TSTRB identifies bytes which have data, there's a bit for each input byte
-			csize += in.strb.get_bit(i.range(15, LOG_IO_T_b - (IO_T_B - 1)));
-		}
-	} while(!in.last);
+	j = off1.range(63,48) - off2.range(63,48);
+	j = j << LOG_IO_T_b;
+	h = *codelen - off1.range(63,48);
 
-	offset = offset_0 + T_s * m * code_displacement;
-	lst = last;
+	off1 = off2;
 
-	// f(offset) : R --> [0, csize]
-	offset = offset - ap_int<16>(offset/csize)*csize;
-	if(offset < 0) offset += csize;
-	// -- this solution adds 800 LUTS --
-
-	// f(offset) : [-cszie, 2*csize]
-	//if(offset < 0) offset += csize;
-	//if(offset > csize) offset -= csize;
-
-	// Output resampled code(s)
+	// Output resampled code
 	do {
-		for(write = 0; write < O_BUS_b; write += IO_T_b) {
+		for(k = 0; k < O_BUS_b; k += IO_T_b) {
 			#pragma HLS unroll
 
-			out.data.range((int) write + IO_T_b - 1, write) = localmem[offset.range(48 + LOG_MAX_SUPPORTED_EL - 1, 48)];
+			std::cout << j << std::endl;
+			std::cout << off2 << std::endl;
+			std::cout << off1 << std::endl;
+			std::cout << "-----" << std::endl;
 
-			offset += T_s;
-			if(offset >= csize) offset -= csize;
+			out.data.range(k + IO_T_b - 1, k) = in.data.range(j + IO_T_b - 1, j);
+
+			off2 += *step;
+
+			if(off2.range(63,48) > off1.range(63,48)) {
+				j += IO_T_b;
+				off1 = off2;
+
+				if(j >= I_BUS_b) {
+					j = 0;
+					in = strm_in.read();
+				}
+			}
 		}
 
 		out.strb = 0xFF;
 		out.keep = 0xFF;
 
-		if(lst-- == 0) {
-			out.last = 1;
-
-			m++;
-			offset = offset_0 + T_s * m * code_displacement;
-			if(offset < 0) offset += csize;
-			else if(offset > csize) offset -= csize;
-
-			lst = last;
-		}
-		else
-			out.last = 0;
-
+		out.last = !ln;
 		strm_out.write(out);
+		ln -= (I_BUS_b/IO_T_b);
 
-	} while(m != m_codes);
+	} while(ln > 0);
+
+	// Discard following code chips
+	for(off1 = 0; off1 < h; off1 += (I_BUS_b/IO_T_b))
+		in = strm_in.read();
+
+	*offset += *step;
+
+	if(*offset < 0) *offset += codelen;
+	else if(*offset > codelen) *offset -= codelen;
 }
 
