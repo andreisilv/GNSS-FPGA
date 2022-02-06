@@ -1,21 +1,108 @@
 INFO: Applying HLS Y2K22 patch v1.2 for IP revision
 INFO: [HLS 200-10] Running 'C:/opt/Xilinx/Vivado/2019.2/bin/unwrapped/win64.o/vivado_hls.exe'
-INFO: [HLS 200-10] For user 'andre' on host 'iud' (Windows NT_amd64 version 6.2) on Sat Feb 05 13:12:16 +0000 2022
+INFO: [HLS 200-10] For user 'andre' on host 'iud' (Windows NT_amd64 version 6.2) on Sat Feb 05 16:59:38 +0000 2022
 INFO: [HLS 200-10] In directory 'D:/andre/Documents/tese/projeto/hardware'
-Sourcing Tcl script 'D:/andre/Documents/tese/projeto/hardware/mixcarr.HLS/solution1/export.tcl'
+Sourcing Tcl script 'D:/andre/Documents/tese/projeto/hardware/mixcarr.HLS/solution1/csim.tcl'
 INFO: [HLS 200-10] Opening project 'D:/andre/Documents/tese/projeto/hardware/mixcarr.HLS'.
 INFO: [HLS 200-10] Opening solution 'D:/andre/Documents/tese/projeto/hardware/mixcarr.HLS/solution1'.
 INFO: [SYN 201-201] Setting up clock 'default' with a period of 10ns.
 INFO: [HLS 200-10] Setting target device to 'xc7z010-clg400-1'
-INFO: [IMPL 213-8] Exporting RTL as a Vivado IP.
+INFO: [SIM 211-2] *************** CSIM start ***************
+INFO: [SIM 211-4] CSIM will launch GCC as the compiler.
+   Compiling ../../../../../src/tb_mixcarr.cpp in debug mode
+   Compiling ../../../../../src/mixcarr.cpp in debug mode
+   Generating csim.exe
+In file included from C:/opt/Xilinx/Vivado/2019.2/include/floating_point_v7_0_bitacc_cmodel.h:143:0,
+                 from C:/opt/Xilinx/Vivado/2019.2/include/hls_fpo.h:186,
+                 from C:/opt/Xilinx/Vivado/2019.2/include/hls_half.h:44,
+                 from C:/opt/Xilinx/Vivado/2019.2/include/etc/ap_private.h:90,
+                 from C:/opt/Xilinx/Vivado/2019.2/include/ap_common.h:641,
+                 from C:/opt/Xilinx/Vivado/2019.2/include/ap_int.h:54,
+                 from ../../../../../src/tb_mixcarr.cpp:1:
+C:/opt/Xilinx/Vivado/2019.2/include/gmp.h:62:0: warning: "__GMP_LIBGMP_DLL" redefined
+ #define __GMP_LIBGMP_DLL  0
+ 
+In file included from C:/opt/Xilinx/Vivado/2019.2/include/hls_fpo.h:186:0,
+                 from C:/opt/Xilinx/Vivado/2019.2/include/hls_half.h:44,
+                 from C:/opt/Xilinx/Vivado/2019.2/include/etc/ap_private.h:90,
+                 from C:/opt/Xilinx/Vivado/2019.2/include/ap_common.h:641,
+                 from C:/opt/Xilinx/Vivado/2019.2/include/ap_int.h:54,
+                 from ../../../../../src/tb_mixcarr.cpp:1:
+C:/opt/Xilinx/Vivado/2019.2/include/floating_point_v7_0_bitacc_cmodel.h:135:0: note: this is the location of the previous definition
+ #define __GMP_LIBGMP_DLL 1
+ 
+In file included from C:/opt/Xilinx/Vivado/2019.2/include/floating_point_v7_0_bitacc_cmodel.h:143:0,
+                 from C:/opt/Xilinx/Vivado/2019.2/include/hls_fpo.h:186,
+                 from C:/opt/Xilinx/Vivado/2019.2/include/hls_half.h:44,
+                 from C:/opt/Xilinx/Vivado/2019.2/include/etc/ap_private.h:90,
+                 from C:/opt/Xilinx/Vivado/2019.2/include/ap_common.h:641,
+                 from C:/opt/Xilinx/Vivado/2019.2/include/ap_int.h:54,
+                 from ../../../../../src/mixcarr.cpp:1:
+C:/opt/Xilinx/Vivado/2019.2/include/gmp.h:62:0: warning: "__GMP_LIBGMP_DLL" redefined
+ #define __GMP_LIBGMP_DLL  0
+ 
+In file included from C:/opt/Xilinx/Vivado/2019.2/include/hls_fpo.h:186:0,
+                 from C:/opt/Xilinx/Vivado/2019.2/include/hls_half.h:44,
+                 from C:/opt/Xilinx/Vivado/2019.2/include/etc/ap_private.h:90,
+                 from C:/opt/Xilinx/Vivado/2019.2/include/ap_common.h:641,
+                 from C:/opt/Xilinx/Vivado/2019.2/include/ap_int.h:54,
+                 from ../../../../../src/mixcarr.cpp:1:
+C:/opt/Xilinx/Vivado/2019.2/include/floating_point_v7_0_bitacc_cmodel.h:135:0: note: this is the location of the previous definition
+ #define __GMP_LIBGMP_DLL 1
+ 
+TSTRB: 0b1111
+TKEEP: 0b1111
+TLAST: 0b0
+DATA: 0b01111111110000000100000001
 
-****** Vivado v2019.2 (64-bit)
-  **** SW Build 2708876 on Wed Nov  6 21:40:23 MST 2019
-  **** IP Build 2700528 on Thu Nov  7 00:09:20 MST 2019
-    ** Copyright 1986-2019 Xilinx, Inc. All Rights Reserved.
+TSTRB: 0b1111
+TKEEP: 0b1111
+TLAST: 0b0
+DATA: 0b01111111111111111100000001
 
-source run_ippack.tcl -notrace
-INFO: [IP_Flow 19-234] Refreshing IP repositories
-INFO: [IP_Flow 19-1704] No user IP repositories specified
-INFO: [IP_Flow 19-2313] Loaded Vivado IP repository 'C:/opt/Xilinx/Vivado/2019.2/data/ip'.
-INFO: [Common 17-206] Exiting Vivado at Sat Feb  5 13:12:31 2022...
+TSTRB: 0b1111
+TKEEP: 0b1111
+TLAST: 0b0
+DATA: 0b11111111111111110000000100000001
+
+TSTRB: 0b011
+TKEEP: 0b1111
+TLAST: 0b1
+DATA: 0b11111111111111110000000111111111
+
+SW.I : HW.I 	 SW.Q : HW.Q
++32 : +32 		  +0 :  +0 	 #     0 (Word     0)
+ +0 :  +0 		 +32 : +32 	 #     1 (Word     0)
++32 : +32 		  +0 :  +0 	 #     2 (Word     0)
+ +0 :  +0 		 -32 : -32 	 #     3 (Word     0)
++32 : +32 		  +0 :  +0 	 #     8 (Word     1)
+ +0 :  +0 		 -32 : -32 	 #     9 (Word     1)
++32 : +32 		  +0 :  +0 	 #    10 (Word     1)
+ +0 :  +0 		 -32 : -32 	 #    11 (Word     1)
++32 : +32 		  +0 :  +0 	 #    16 (Word     2)
+ +0 :  +0 		 +32 : +32 	 #    17 (Word     2)
++32 : +32 		  +0 :  +0 	 #    18 (Word     2)
+ +0 :  +0 		 +32 : +32 	 #    19 (Word     2)
+-32 : -32 		  +0 :  +0 	 #    24 (Word     3)
+ +0 :  +0 		 +32 : +32 	 #    25 (Word     3)
+-32 : +32 		  +0 :  +0 	 #    26 (Word     3) [#Error=  1]
+ +0 :  +0 		 -32 : +32 	 #    27 (Word     3) [#Error=  2]
+TSTRB: 0b0111100001111
+TKEEP: 0b1111111111111111
+TLAST: 0b1
+DATA: 0b01000000000000000000000000000000010000000000000000000000000000000000000000000000010000000000000000000001111111111100000
+
+@E Simulation failed: Function 'main' returns nonzero value '1'.
+ERROR: [SIM 211-100] 'csim_design' failed: nonzero return value.
+INFO: [SIM 211-3] *************** CSIM finish ***************
+4
+    while executing
+"source D:/andre/Documents/tese/projeto/hardware/mixcarr.HLS/solution1/csim.tcl"
+    invoked from within
+"hls::main D:/andre/Documents/tese/projeto/hardware/mixcarr.HLS/solution1/csim.tcl"
+    ("uplevel" body line 1)
+    invoked from within
+"uplevel 1 hls::main {*}$args"
+    (procedure "hls_proc" line 5)
+    invoked from within
+"hls_proc $argv"

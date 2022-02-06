@@ -6,22 +6,18 @@
 // ** LOGICAL SIZES **
 
 // IO Type
-#define I_T_b				8
-#define O_T_b				16		// > ADD_BUS_b
+#define I_T_b			8
+#define O_T_b			16	// > ADD_BUS_b
+#define I_T_B			(I_T_b/8)
+#define O_T_B			(O_T_b/8)
 
-// IO Type . auxiliar
+#define O_T_MASK  0x3
 #define LOG_I_T_b 3
-#define I_T_B 2
-#define I_T_B_MASK 0x3
-#define x2_I_T_B_MASK 0xF
-#define x2_I_T_b 16
-#define x2_I_T_B 4
-#define x2_O_T_b 32
-#define x4_O_T_b 64
+#define LOG_O_T_b 4
 
 // Local Carrier Table
 
-#define COST_ENTRIES	7
+#define COST_ENTRIES	8
 #define COST_ENTRIES_b	8
 #define INDEX_b			5
 #define INDEX_MASK 		0x1F
@@ -34,12 +30,16 @@
 // ** BUS SIZES **
 #define I_BUS_b				32
 #define O_BUS_b				128
-#define MUL_BUS_b			10 		// most GNSS receivers A/DC quantize 4 bits (signed) + trig vector 5 bits (unsigned), 6 bits (signed)
-#define ADD_BUS_b			11		// MUL_BUS_b + 1 = 11
+#define O_TSTRB_b			((O_BUS_b + 7)/8) 	// TSTRB width (AXI) ( valid bytes control )
+#define MUL_BUS_b			10 					// most GNSS receivers A/D quantize 4 bits (signed) // carrier local table 5 bits (unsigned), 6 bits (signed)
+#define ADD_BUS_b			11					// MUL_BUS_b + 1 = 11
 
 #define LOG_I_BUS_b 5
 #define LOG_O_BUS_b 8
 
+/* TSTRB=HIGH && TKEEP=HIGH : "The associated byte contains valid information that must be transmitted between source and destination."
+ * If TSTRB is LOW, then data is invalid, however if TKEEP is HIGH, the indicated byte should be kept: "The associated byte indicates the relative position of the data bytes in a stream, but does not contain any relevant data values."
+ */
 #define TKEEP_MASK 0xFFFF
 #define TSTRB_MASK 0xFFFF
 
@@ -63,9 +63,9 @@ void mixcarr(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out);
 #include <stdlib.h>
 
 #define VEC_SIZE_M 16384
-#define VEC_SIZE 16384
+#define VEC_SIZE 14
 
-#define MUTED 0
+#define MUTE 0
 
 int main()
 {
@@ -152,7 +152,7 @@ int main()
 	   fread(buffer, sizeof(char), bus_size, signal);
 
 	   tmpa.strb = 1;
-	   for(int j = 0; j < bus_size; j ++) {
+	   for(int j = 0; (j < bus_size) && (i + j < VEC_SIZE); j++) {
 		   ((char*) &(tmpa.data))[j] = buffer[j];
 		   for(int k = 0; k < I_T_B - !j; k++)
 			   tmpa.strb |= tmpa.strb << 1;
@@ -162,6 +162,13 @@ int main()
 		   tmpa.last = 1;
 
 	   tmpa.keep = TKEEP_MASK;
+
+	   if(!MUTE) {
+		   printf("TSTRB: %s\n", tmpa.strb.to_string().c_str());
+		   printf("TKEEP: %s\n", tmpa.keep.to_string().c_str());
+		   printf("TLAST: %s\n", tmpa.last.to_string().c_str());
+		   printf("DATA: %s\n\n", tmpa.data.to_string().c_str());
+	   }
 
 	   in.write(tmpa);
    }
@@ -173,7 +180,9 @@ int main()
    err = 0, errl = err;
    bus_size = O_BUS_b/O_T_b;
 
-   if(!MUTED)
+   int more = 0;
+
+   if(!MUTE)
 	   printf("SW.I : HW.I \t SW.Q : HW.Q\n");
 
    for(int i = 0; i < 2*VEC_SIZE; i+= bus_size) {
@@ -186,10 +195,21 @@ int main()
 		   if((II[j] != ((short*) &tmpo)[j]) || (QQ[j] - ((short*) &tmpo)[bus_size/2+j]))
 			   err ++;
 
-		   if(!MUTED && (err != errl)) {
-			   printf("%+3d : %+3d\t%+3d : %+3d #%6d (Word %5d) [#Error=%3d]\n", II[j], ((short*) &tmpo)[j], QQ[j], ((short*) &tmpo)[bus_size/2+j], i, i/bus_size, err);
+		   if(!MUTE && (err != errl)) {
+			   printf("%+3d : %+3d \t\t %+3d : %+3d \t #%6d (Word %5d) [#Error=%3d]\n", II[j], ((short*) &tmpo)[j], QQ[j], ((short*) &tmpo)[bus_size/2+j], i + j, i/bus_size, err);
 			   errl = err;
+			   more = 1;
+		   } else if(!MUTE) {
+			   printf("%+3d : %+3d \t\t %+3d : %+3d \t #%6d (Word %5d)\n", II[j], ((short*) &tmpo)[j], QQ[j], ((short*) &tmpo)[bus_size/2+j], i + j, i/bus_size);
 		   }
+	   }
+
+	   if(!MUTE && more) {
+		   printf("TSTRB: %s\n", tmpo.strb.to_string().c_str());
+		   printf("TKEEP: %s\n", tmpo.keep.to_string().c_str());
+		   printf("TLAST: %s\n", tmpo.last.to_string().c_str());
+		   printf("DATA: %s\n\n", tmpo.data.to_string().c_str());
+		   more = 0;
 	   }
    }
 
