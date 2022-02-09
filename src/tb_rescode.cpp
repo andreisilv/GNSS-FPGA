@@ -28,7 +28,7 @@ void rescode(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out);
 #define SHORT(X) ((short) ( !(X & 0x80) ?  X : X | 0xFF00 ))
 
 #define CODE_SIZE 1023
-#define RESAMPLED_SIZE 16368
+#define RESAMPLED_SIZE 4092//16368
 
 #define MUTE 0
 
@@ -56,6 +56,7 @@ int main()
 	/* 3rd */ ap_fixed<64,16> T_s = ap_fixed<64,16>(1023000*6.109482e-08);
 	/* 4th */ ap_int<8> code_displacement = 8; // 16 samples per chip
 	/* 5th */ ap_int<8> m_codes = 3; // early code, prompt code, late code
+	/* 6th */ ap_int<32> csize = CODE_SIZE; // code length
 
     hls::stream<in_t> strm_in;
    	hls::stream<out_t> strm_out;
@@ -93,6 +94,12 @@ int main()
 	arg.data.range(23,16) = code_displacement;
 	arg.data.range(31,24) = m_codes;
 
+	arg.strb = 0xF;
+	arg.keep = 0xF;
+	arg.last = 1;
+	strm_in.write(arg); 	/* WRITE */
+
+	arg.data = csize;
 	arg.strb = 0xF;
 	arg.keep = 0xF;
 	arg.last = 1;

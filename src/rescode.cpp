@@ -91,6 +91,12 @@ void rescode(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out)
 	/* 5th : NUMBER OF CODE COPIES (e.g. EARLY, PROMPT and LATE) */
 	ap_int<8> m_codes = in.data.range(31,24);
 
+	/*** READ ***/
+	in = strm_in.read();
+
+	/* 6th : CSIZE */
+	ap_int<16> csize_0 = in.data.range(15,0);
+
 	csize = 0;
 	m = 0;
 
@@ -102,7 +108,8 @@ void rescode(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out)
 			localmem[csize.range(LOG_MAX_SUPPORTED_EL - 1, 0)] = ap_int<IO_T_b>(in.data.range(i + IO_T_b - 1, i));
 
 			// TSTRB identifies bytes which have data, there's a bit for each input byte
-			csize += in.strb.get_bit(i.range(15, LOG_IO_T_b - (IO_T_B - 1)));
+			// csize += in.strb.get_bit(i.range(15, LOG_IO_T_b - (IO_T_B - 1)));
+			if(++csize >= csize_0) break;
 		}
 	} while(!in.last);
 

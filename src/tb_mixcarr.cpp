@@ -63,7 +63,7 @@ void mixcarr(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out);
 #include <stdlib.h>
 
 #define VEC_SIZE_M 16384
-#define VEC_SIZE 14
+#define VEC_SIZE 1023
 
 #define MUTE 0
 
