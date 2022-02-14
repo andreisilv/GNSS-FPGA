@@ -11,4 +11,16 @@ Programmable Logic
 3. **current_bd_design design_2**
 4. **source design_1.tcl**
 
-![Tracking](./hardware/tracking.VIVADO/Tracking.png)
+<details>
+<summary>
+Block Design
+</summary>
+<img src="./hardware/tracking.VIVADO/Tracking.png">
+</details>
+
+<details>
+<summary>
+Speedup
+</summary>
+<img src="./hardware/tracking.VIVADO/Speedup.png">
+</details>
