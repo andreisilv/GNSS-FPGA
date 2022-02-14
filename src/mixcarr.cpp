@@ -232,9 +232,6 @@ void mixcarr(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out)
 			   [      IN PHASE       ][   IN QUADRATURE    ]
 			*/
 			
-			// get a new index for the input TSTRB signal
-			in_strb = in.strb.get_bit(i.range(LOG_I_BUS_b, LOG_I_T_b));
-
 			if(dtype == COMPLEX) {	
 				add[0] = mul[0] - mul[3];
 				add[1] = mul[1] - mul[2];
@@ -245,7 +242,19 @@ void mixcarr(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out)
 				// get a new index from 'i' that indexes TSTRB, it jumps at each iteration as much as the number of output bytes
 				k = i.range(LOG_I_BUS_b, LOG_I_T_b - (LOG_O_T_b - LOG_I_T_b - 1));
 
+				// get a new index for the input TSTRB signal
+				/* 0 00 000 [ 0]
+				 * 0 01 000 [ 8]
+				 * 0 10 000 [16]
+				 * 0 11 000 [24]
+				 *
+				 * TSTRB: 0bXXXX
+				 */
+				in_strb = in.strb.get_bit(i.range(LOG_I_BUS_b - 1, LOG_I_T_b));
 				// write output TSTRB. if in_strb = 1 the result should be an all '1's number
+				/*
+				 * TSTRB: 0b XXXX XXXX  XXXX XXXX
+				 */
 				strb.range(k + O_T_B - 1, k) = in_strb ? (2 << O_T_B) - 1 : 0;
 
 				j += O_T_b;
@@ -259,8 +268,11 @@ void mixcarr(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out)
 				// get a new index from 'i' that indexes TSTRB, it jumps at each iteration as much as the number of output bytes
 				k = i.range(LOG_I_BUS_b, LOG_I_T_b - (LOG_O_T_b - LOG_I_T_b));
 
-				// write output TSTRB. if in_strb = 1 the result should be an all '1's number
-				strb.range(k + (O_T_B << 1) - 1, k) = in_strb ? (2 << (O_T_B + 1)) - 1 : 0;
+				// write output TSTRB; separately toggle bits for i and i+1, because i+1 might be invalid
+				in_strb = in.strb.get_bit(i.range(LOG_I_BUS_b - 1, LOG_I_T_b));
+				strb.range(k + O_T_B - 1, k) = in_strb ? (2 << O_T_B) - 1 : 0;
+				in_strb = in.strb.get_bit(i.range(LOG_I_BUS_b - 1, LOG_I_T_b) + 1);
+				strb.range(k + (O_T_B << 1) - 1, k + O_T_B) = in_strb ? (2 << O_T_B) - 1 : 0;
 
 				j += O_T_b << 1;
 				phase += pstep << 1;

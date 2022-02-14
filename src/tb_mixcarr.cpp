@@ -192,8 +192,12 @@ int main()
 	   fread(QQ, sizeof(char), bus_size, fQQ);
 
 	   for(int j = 0; j < bus_size/2; j ++) {
-		   if((II[j] != ((short*) &tmpo)[j]) || (QQ[j] - ((short*) &tmpo)[bus_size/2+j]))
-			   err ++;
+		   if((II[j] != ((short*) &tmpo)[j]) || (QQ[j] - ((short*) &tmpo)[bus_size/2+j])) {
+			   if(((long int*) &(tmpo.strb))[0] < j)
+				   err ++;
+			   else
+				   if(!MUTE) printf("END OF VECTOR\n");
+		   }
 
 		   if(!MUTE && (err != errl)) {
 			   printf("%+3d : %+3d \t\t %+3d : %+3d \t #%6d (Word %5d) [#Error=%3d]\n", II[j], ((short*) &tmpo)[j], QQ[j], ((short*) &tmpo)[bus_size/2+j], i + j, i/bus_size, err);

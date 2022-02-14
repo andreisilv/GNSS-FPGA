@@ -1,14 +1,7 @@
 from re import M
 from numpy import array
-from matplotlib.pyplot import scatter, plot, subplot, show, xlabel, ylabel, figure, title, legend, tight_layout
+from matplotlib.pyplot import scatter, plot, subplot, show, xlabel, ylabel, figure, title, legend, tight_layout, gcf
 
-'''
-# Latency
-    pragma HLS loop_tripcount min=1024 max=16384 // directive only affects reports, not synthesis
-                              ^ elements   ^ elements, adjusted in each src file to meet this limits in elements 
-    ^ allow for comparison between synthesis
-    ^ only applies to desgins with "latency": [min, max]
-'''
 Board = {
     "cortex_a9": {
         "frequency": 0.667, "frequency-max": 1, "cores": 2, "buses": "AMBA3",
@@ -20,15 +13,25 @@ Board = {
 }
 
 Design = {
+'''
+    # Latency
+        pragma HLS loop_tripcount min=1024 max=16384 // directive only affects reports, not synthesis
+                                ^ elements   ^ elements, adjusted in each src file to meet this limits in elements 
+        ^ allow for comparison between synthesis
+        ^ only applies to desgins with "latency": [min, max]
+'''
     "tracking_v1": {
         "notes":
             """
             - the DLL/FLL are running as SW in the CPU
             """
     },
+    "rescode_v1": {
+
+    },
     "mixcarr_v1": {
         "luts": 1193, "registers": 1386, "ram_percent": 3.94, "dsp": 0,
-        "target_clock": 10, "hls_estimation": 8.724, "vivado_wns": 1.073, "latency": [4615, 73735],
+        "target_clock": 10, "hls_estimation": 8.724, "vivado_wns": 1.073, "latency": [4608, 73728],
         "io": {"in_bus": 32, "out_bus": 128},
         "hls_directives": {
             "loop unroll": False,
@@ -67,7 +70,7 @@ Design = {
     "macc_v1": {}
 }
 
-Implementation = {
+Timing = {
     '''
     performance in miliseconds
     (ps time corresponds to the performance of the accelerated code section in the processor, for comparison)
@@ -85,8 +88,8 @@ Implementation = {
     "mixcarr_v1": {
         "name": "Mix Carrier",
         "samples": array([511     , 1023    , 2046    , 4092    , 8184    , 16368   , 131072  , 524288   ]),
-        "pl_time": array([0.440775, 0.451794, 0.475634, 0.521034, 0.613129, 0.797868, 3.378058, 12.226458]),
-        "ps_time": array([0.042111, 0.060225, 0.094129, 0.163794, 0.303640, 0.578335, 4.749695, 18.940545])
+        "pl_time": array([0.273911, 0.289095, 0.319526, 0.376742, 0.495902, 0.798963, 3.306446, 12.227212]),
+        "ps_time": array([0.018498, 0.035646, 0.069634, 0.138458, 0.276594, 0.577262, 4.725815, 18.941006])
     },
     "rescode_v1": {
         "name": "Resample Code",
@@ -96,31 +99,33 @@ Implementation = {
     },
     "tracking_v1": {
         "name": "Signal Tracking",
-        "samples": array([511     , 1023    , 2046    , 4092    , 8184    , 16368   , 131072  , 524288   ]),
-        "pl_time": array([0.000000, 0.000000, 0.000000, 0.000000, 0.848182, 1.532458, 0.000000,  0.000000]),
-        "ps_time": array([0.000000, 0.000000, 0.000000, 0.661446, 1.322283, 2.681591, 0.000000,  0.000000])
+        "samples": array([511     , 1023    , 2046    , 4092    , 8184    , 16368   , 32768   , 65536    , 131072  , 262144   , 524288   ]),
+        "pl_time": array([0.308615, 0.346951, 0.421963, 0.572766, 0.875714, 1.546603, 2.605286, 4.796529 , 9.216680, 18.064182, 35.830738]),
+        "ps_time": array([0.084754, 0.166969, 0.330800, 0.660080, 1.324671, 2.668243, 5.414055, 11.039182,21.935212, 43.614591, 87.473988])
     }
 }
 
-impls = Implementation.values()
+impls = Timing.values()
 
 i = 1
 figure()
- 
+
+subplot_in_a_row = 4
+
 for impl in impls:
     x = impl["samples"]
     f = impl["pl_time"]
     g = impl["ps_time"]
     
-    if(i > 3):
+    if(i > subplot_in_a_row):
         i = 1
         figure()
 
-    subplot(3, 1, i)
+    subplot(subplot_in_a_row/2, subplot_in_a_row/2, i)
     tight_layout()
     
-    plot(x, f, '-og')
-    plot(x, g, '-ob')
+    plot(x, g/f, '-og')
+    #plot(x, g, '-ob')
     
     legend(['PL', 'PS'])
     title(impl["name"])
@@ -128,5 +133,7 @@ for impl in impls:
     ylabel("Time [ms]")
     
     i += 1
+
+gcf().suptitle("Speedup")
 
 show()
