@@ -1,6 +1,6 @@
 from re import M
 from numpy import array
-from matplotlib.pyplot import scatter, plot, subplot, show, xlabel, ylabel, figure, title, legend, tight_layout, gcf
+from matplotlib.pyplot import scatter, plot, subplot, show, xlabel, ylabel, figure, title, legend, tight_layout, gcf, grid
 
 Board = {
     "cortex_a9": {
@@ -12,32 +12,48 @@ Board = {
     }
 }
 
-Design = {
-'''
-    # Latency
-        pragma HLS loop_tripcount min=1024 max=16384 // directive only affects reports, not synthesis
-                                ^ elements   ^ elements, adjusted in each src file to meet this limits in elements 
-        ^ allow for comparison between synthesis
-        ^ only applies to desgins with "latency": [min, max]
-'''
+Design = {   
     "tracking_v1": {
+        "luts": 3890, "registers": 5228, "ram_percent": 11.45, "dsp": 13,
+        "target_clock": 10, "vivado_wns": 0.254,
+        "dma overhead": {
+            "luts": 4818, "registers": 6560, "ram_percent": 25.45, "dsp": 0
+        },
         "notes":
             """
+            - main stats: includes: broadcasters, macc, mixcarr, rescode, floating point units
             - the DLL/FLL are running as SW in the CPU
             """
     },
     "rescode_v1": {
-
+        "luts": 1205, "registers": 1712, "ram_percent": 4.86, "dsp": 5,
+        "target_clock": 10, "hls_estimation": 8.715, "vivado_wns": 2.204, "latency": [0, 0],
+        "io": {"in_bus": 32, "out_bus": 64},
+        "hls_directives": {
+            "loop unroll": True, "unroll factor": 2,
+            "pipeline": False,
+            "loop flatten": False,
+            "inline": False,
+        },
+        "dma overhead": {
+            "luts": 2738, "registers": 3743, "ram_percent": 14.4, "dsp": 0
+        },
+        "notes":
+            """
+            """
     },
     "mixcarr_v1": {
-        "luts": 1193, "registers": 1386, "ram_percent": 3.94, "dsp": 0,
-        "target_clock": 10, "hls_estimation": 8.724, "vivado_wns": 1.073, "latency": [4608, 73728],
+        "luts": 1174, "registers": 1384, "ram_percent": 3.93, "dsp": 0,
+        "target_clock": 10, "hls_estimation": 8.724, "vivado_wns": 1.401, "latency": [2311, 36871],
         "io": {"in_bus": 32, "out_bus": 128},
         "hls_directives": {
             "loop unroll": False,
             "pipeline": True, "initiation interval": "2",
             "loop flatten": False,
             "inline": True,
+        },
+        "dma overhead": {
+            "luts": 5282, "registers": 7677, "ram_percent": 21.32, "dsp": 0
         },
         "notes":
             """
@@ -51,18 +67,23 @@ Design = {
             """
     },
     "macc_v3": {
-        "luts": 507, "registers": 739, "ram_percent": 2.10, "dsp": 8,
-        "target_clock": 10, "hls_estimation": 7.900, "vivado_wns": 0.488, "latency": [515, 8195],
+        "luts": 356, "registers": 367, "ram_percent": 1.04, "dsp": 4,
+        "target_clock": 10, "hls_estimation": 8.665, "vivado_wns": 0.519, "latency": [256, 4096],
         "io": {"in_bus": 64, "out_bus": 64},
         "hls_directives": {
-            "loop unroll": True, "unroll factor": 4,
+            "loop unroll": True, "unroll factor": 2+2,
             "pipeline": True, "initiation interval": 2,
             "loop flatten": False
         },
+        "dma overhead": {
+            "luts": 4306, "registers": 5888, "ram_percent": 16.73, "dsp": 0
+        },
+        "floating poit unit overhead": {
+            "luts": 320, "registers": 508, "ram_percent": 1.44, "dsp": 0
+        },
         "notes":
             """
-            - pipeline doesn't allow for proper unroll, but increases processing speed
-            
+            - pipeline doesn't allow for proper unroll, but increases processing speed (splits loop unroll 4 => 2 + 2)
             - testbench [IF_GN3S]: 82.225 ns (pipeline, unroll 2 + 2) vs 164.125 ns (no pipeline, unroll 4)
             """
     },
@@ -71,57 +92,80 @@ Design = {
 }
 
 Timing = {
-    '''
-    performance in miliseconds
-    (ps time corresponds to the performance of the accelerated code section in the processor, for comparison)
-    code used        : Satellite GPS 03
-    <= 16368 samples : IF_GN3S.bin (sample)
-    >  16368 samples : GPS_and_GIOVE_A-NN-fs16_3676-if4_1304.bin
-    '''
-
     "macc_v3": {
         "name": "Correlation",
-        "samples": array([511     , 1023    , 2046    , 4092    , 8184    , 16368   , 131072  , 524288   ]),
-        "pl_time": array([0.302292, 0.321332, 0.361388, 0.439566, 0.587668, 0.933803, 4.327151, 16.119132]),
-        "ps_time": array([0.302292, 0.077763, 0.157102, 0.439566, 0.626815, 1.251806, 9.661825, 38.512058])
+        "x_l": "Samples",
+        "y_l": "Time [ms]",
+        "x":    array([1023    , 2046    , 4092    , 8184    , 16368   ]),
+        "y_pl": array([0.321332, 0.373800, 0.455292, 0.610040, 0.973354]),
+        "y_ps": array([0.077763, 0.142766, 0.286480, 0.577711, 1.153388])
+    },
+    "macc_v2": {
+        "name": "Correlation (v2)",
+        "x_l": "Samples",
+        "y_l": "Time [ms]",
+        "x":    array([16368   ]),
+        "y_pl": array([2.140825]),
+        "y_ps": array([1.153622])
+    },
+    "macc_v1": {
+        "name": "Correlation (v1)",
+        "x_l": "Samples",
+        "y_l": "Time [ms]",
+        "x":    array([1023    , 2046    , 4092    , 8184    , 16368   ]),
+        "y_pl": array([0.358849, 0.425677, 0.551778, 0.798049, 1.347049]),
+        "y_ps": array([0.071775, 0.143212, 0.287360, 0.578788, 1.153591])
     },
     "mixcarr_v1": {
         "name": "Mix Carrier",
-        "samples": array([511     , 1023    , 2046    , 4092    , 8184    , 16368   , 131072  , 524288   ]),
-        "pl_time": array([0.273911, 0.289095, 0.319526, 0.376742, 0.495902, 0.798963, 3.306446, 12.227212]),
-        "ps_time": array([0.018498, 0.035646, 0.069634, 0.138458, 0.276594, 0.577262, 4.725815, 18.941006])
+        "x_l": "Samples",
+        "y_l": "Time [ms]",
+        "x":    array([1023    , 2046    , 4092    , 8184    , 16368   ]),
+        "y_pl": array([0.289095, 0.319526, 0.376742, 0.495902, 0.798963]),
+        "y_ps": array([0.035646, 0.069634, 0.138458, 0.276594, 0.577262])
     },
     "rescode_v1": {
-        "name": "Resample Code",
-        "samples": array([511     , 1023    , 2046    , 4092    , 8184    , 16368   , 131072  , 524288   ]),
-        "pl_time": array([0.057483, 0.080511, 0.126794, 0.218852, 0.403083, 0.772274, 5.932920, 23.628791]),
-        "ps_time": array([0.030372, 0.059560, 0.117797, 0.234332, 0.467298, 0.934726, 7.464569, 29.857243])
+       "name": "Resample Code",
+        "x_l": "Samples",
+        "y_l": "Time [ms]",
+        "x":    array([1023    , 2046    , 4092    , 8184    , 16368   ]),
+        "y_pl": array([0.080511, 0.126794, 0.218852, 0.403083, 0.772274]),
+        "y_ps": array([0.059560, 0.117797, 0.234332, 0.467298, 0.934726])
     },
     "tracking_v1": {
         "name": "Signal Tracking",
-        "samples": array([511     , 1023    , 2046    , 4092    , 8184    , 16368   , 32768   , 65536    , 131072  , 262144   , 524288   ]),
-        "pl_time": array([0.308615, 0.346951, 0.421963, 0.572766, 0.875714, 1.546603, 2.605286, 4.796529 , 9.216680, 18.064182, 35.830738]),
-        "ps_time": array([0.084754, 0.166969, 0.330800, 0.660080, 1.324671, 2.668243, 5.414055, 11.039182,21.935212, 43.614591, 87.473988])
+        "x_l": "Samples",
+        "y_l": "Time [ms]",
+        "x":    array([1023    , 2046    , 4092    , 8184    , 16368   ]),
+        "y_pl": array([0.346951, 0.421963, 0.572766, 0.875714, 1.546603]),
+        "y_ps": array([0.166969, 0.330800, 0.660080, 1.324671, 2.668243])
     }
 }
 
-impls = Timing.values()
+'''
+performance in miliseconds
+(ps time corresponds to the performance of the accelerated code section in the processor, for comparison)
+code used        : Satellite GPS 03
+<= 16368 samples : IF_GN3S.bin (sample)
+>  16368 samples : GPS_and_GIOVE_A-NN-fs16_3676-if4_1304.bin
+'''
 
 i = 1
 figure()
 
-subplot_in_a_row = 4
+layout_i = 2
+layout_j = 2
 
-for impl in impls:
-    x = impl["samples"]
-    f = impl["pl_time"]
-    g = impl["ps_time"]
-    
-    if(i > subplot_in_a_row):
-        i = 1
-        figure()
+layout = ["macc_v1", "macc_v2", "macc_v3"]
+# layout = ["tracking_v1", "macc_v3", "rescode_v1", "mixcarr_v1"]
 
-    subplot(subplot_in_a_row/2, subplot_in_a_row/2, i)
+for key in layout:
+    impl = Timing[key]
+    x = impl["x"]
+    f = impl["y_pl"]
+    g = impl["y_ps"]
+
+    subplot(layout_i, layout_j, i)
     tight_layout()
     
     plot(x, g/f, '-og')
@@ -129,11 +173,12 @@ for impl in impls:
     
     legend(['PL', 'PS'])
     title(impl["name"])
-    xlabel("Samples")
-    ylabel("Time [ms]")
+    xlabel(impl["x_l"])
+    ylabel("Speedup")
+    grid()
     
     i += 1
 
-gcf().suptitle("Speedup")
+gcf().suptitle("")
 
 show()

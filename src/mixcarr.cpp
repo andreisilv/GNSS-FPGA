@@ -184,7 +184,7 @@ void mixcarr(hls::stream<in_t> &strm_in, hls::stream<out_t> &strm_out)
 	// while there are real/complex elements to process
 
 	while(n_out) {
-		#pragma HLS loop_tripcount min=512 max=8192 // directive only affects reports, not synthesis
+		#pragma HLS loop_tripcount min=256 max=4096 // directive only affects reports, not synthesis
 		in = strm_in.read();
 
 		/* LOOP
