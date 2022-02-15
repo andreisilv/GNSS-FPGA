@@ -12,32 +12,48 @@ Board = {
     }
 }
 
-Design = {
-'''
-    # Latency
-        pragma HLS loop_tripcount min=1024 max=16384 // directive only affects reports, not synthesis
-                                ^ elements   ^ elements, adjusted in each src file to meet this limits in elements 
-        ^ allow for comparison between synthesis
-        ^ only applies to desgins with "latency": [min, max]
-'''
+Design = {   
     "tracking_v1": {
+        "luts": 3890, "registers": 5228, "ram_percent": 11.45, "dsp": 13,
+        "target_clock": 10, "vivado_wns": 0.254,
+        "dma overhead": {
+            "luts": 4818, "registers": 6560, "ram_percent": 25.45, "dsp": 0
+        },
         "notes":
             """
+            - main stats: includes: broadcasters, macc, mixcarr, rescode, floating point units
             - the DLL/FLL are running as SW in the CPU
             """
     },
     "rescode_v1": {
-
+        "luts": 1205, "registers": 1712, "ram_percent": 4.86, "dsp": 5,
+        "target_clock": 10, "hls_estimation": 8.715, "vivado_wns": 2.204, "latency": [0, 0],
+        "io": {"in_bus": 32, "out_bus": 64},
+        "hls_directives": {
+            "loop unroll": True, "unroll factor": 2,
+            "pipeline": False,
+            "loop flatten": False,
+            "inline": False,
+        },
+        "dma overhead": {
+            "luts": 2738, "registers": 3743, "ram_percent": 14.4, "dsp": 0
+        },
+        "notes":
+            """
+            """
     },
     "mixcarr_v1": {
-        "luts": 1193, "registers": 1386, "ram_percent": 3.94, "dsp": 0,
-        "target_clock": 10, "hls_estimation": 8.724, "vivado_wns": 1.073, "latency": [4608, 73728],
+        "luts": 1174, "registers": 1384, "ram_percent": 3.93, "dsp": 0,
+        "target_clock": 10, "hls_estimation": 8.724, "vivado_wns": 1.401, "latency": [2311, 36871],
         "io": {"in_bus": 32, "out_bus": 128},
         "hls_directives": {
             "loop unroll": False,
             "pipeline": True, "initiation interval": "2",
             "loop flatten": False,
             "inline": True,
+        },
+        "dma overhead": {
+            "luts": 5282, "registers": 7677, "ram_percent": 21.32, "dsp": 0
         },
         "notes":
             """
@@ -51,18 +67,23 @@ Design = {
             """
     },
     "macc_v3": {
-        "luts": 507, "registers": 739, "ram_percent": 2.10, "dsp": 8,
-        "target_clock": 10, "hls_estimation": 7.900, "vivado_wns": 0.488, "latency": [515, 8195],
+        "luts": 356, "registers": 367, "ram_percent": 1.04, "dsp": 4,
+        "target_clock": 10, "hls_estimation": 8.665, "vivado_wns": 0.519, "latency": [256, 4096],
         "io": {"in_bus": 64, "out_bus": 64},
         "hls_directives": {
-            "loop unroll": True, "unroll factor": 4,
+            "loop unroll": True, "unroll factor": 2+2,
             "pipeline": True, "initiation interval": 2,
             "loop flatten": False
         },
+        "dma overhead": {
+            "luts": 4306, "registers": 5888, "ram_percent": 16.73, "dsp": 0
+        },
+        "floating poit unit overhead": {
+            "luts": 320, "registers": 508, "ram_percent": 1.44, "dsp": 0
+        },
         "notes":
             """
-            - pipeline doesn't allow for proper unroll, but increases processing speed
-            
+            - pipeline doesn't allow for proper unroll, but increases processing speed (splits loop unroll 4 => 2 + 2)
             - testbench [IF_GN3S]: 82.225 ns (pipeline, unroll 2 + 2) vs 164.125 ns (no pipeline, unroll 4)
             """
     },
@@ -136,4 +157,4 @@ for impl in impls:
 
 gcf().suptitle("Speedup")
 
-show()
+# show()

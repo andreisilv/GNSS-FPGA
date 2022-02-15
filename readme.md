@@ -16,11 +16,20 @@ Programmable Logic
 Block Design
 </summary>
 <img src="./hardware/tracking.VIVADO/Tracking.png">
+
+<details style="margin-left: 15px;">
+<summary>
+Utilization
+</summary>
+<img src="./hardware/tracking.VIVADO/Utilization.png">
 </details>
 
-<details>
-<summary>
-Speedup
-</summary>
-<img src="./hardware/tracking.VIVADO/Speedup.png">
+<details style="margin-left: 15px;">
+    <summary>
+    Speedup
+    </summary>
+    <img src="./hardware/tracking.VIVADO/Speedup.png">
+    </details>
+</details>
+
 </details>

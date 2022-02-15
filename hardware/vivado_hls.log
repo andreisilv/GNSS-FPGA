@@ -1,21 +1,69 @@
 INFO: Applying HLS Y2K22 patch v1.2 for IP revision
 INFO: [HLS 200-10] Running 'C:/opt/Xilinx/Vivado/2019.2/bin/unwrapped/win64.o/vivado_hls.exe'
-INFO: [HLS 200-10] For user 'andre' on host 'iud' (Windows NT_amd64 version 6.2) on Sun Feb 13 15:05:07 +0000 2022
+INFO: [HLS 200-10] For user 'andre' on host 'iud' (Windows NT_amd64 version 6.2) on Tue Feb 15 20:12:26 +0000 2022
 INFO: [HLS 200-10] In directory 'D:/andre/Documents/tese/projeto/hardware'
-Sourcing Tcl script 'D:/andre/Documents/tese/projeto/hardware/mixcarr.HLS/solution1/export.tcl'
+Sourcing Tcl script 'D:/andre/Documents/tese/projeto/hardware/mixcarr.HLS/solution1/csynth.tcl'
 INFO: [HLS 200-10] Opening project 'D:/andre/Documents/tese/projeto/hardware/mixcarr.HLS'.
+INFO: [HLS 200-10] Adding design file '../src/mixcarr.cpp' to the project
+INFO: [HLS 200-10] Adding test bench file '../src/tb_mixcarr.cpp' to the project
 INFO: [HLS 200-10] Opening solution 'D:/andre/Documents/tese/projeto/hardware/mixcarr.HLS/solution1'.
 INFO: [SYN 201-201] Setting up clock 'default' with a period of 10ns.
 INFO: [HLS 200-10] Setting target device to 'xc7z010-clg400-1'
-INFO: [IMPL 213-8] Exporting RTL as a Vivado IP.
+INFO: [SCHED 204-61] Option 'relax_ii_for_timing' is enabled, will increase II to preserve clock frequency constraints.
+INFO: [HLS 200-10] Analyzing design file '../src/mixcarr.cpp' ... 
+INFO: [HLS 200-111] Finished Linking Time (s): cpu = 00:00:03 ; elapsed = 00:00:39 . Memory (MB): peak = 198.547 ; gain = 106.207
+INFO: [HLS 200-111] Finished Checking Pragmas Time (s): cpu = 00:00:03 ; elapsed = 00:00:39 . Memory (MB): peak = 198.547 ; gain = 106.207
+INFO: [HLS 200-10] Starting code transformations ...
+INFO: [XFORM 203-603] Inlining function 'cosseno' into 'mixcarr' (../src/mixcarr.cpp:208).
+INFO: [XFORM 203-603] Inlining function 'cosseno' into 'mixcarr' (../src/mixcarr.cpp:209).
+INFO: [XFORM 203-603] Inlining function 'cosseno' into 'mixcarr' (../src/mixcarr.cpp:213).
+INFO: [XFORM 203-603] Inlining function 'cosseno' into 'mixcarr' (../src/mixcarr.cpp:214).
+INFO: [HLS 200-111] Finished Standard Transforms Time (s): cpu = 00:00:03 ; elapsed = 00:00:41 . Memory (MB): peak = 198.547 ; gain = 106.207
+INFO: [HLS 200-10] Checking synthesizability ...
+WARNING: [SYNCHK 200-23] ../src/mixcarr.cpp:220: variable-indexed range selection may cause suboptimal QoR.
+INFO: [SYNCHK 200-10] 0 error(s), 1 warning(s).
+INFO: [HLS 200-111] Finished Checking Synthesizability Time (s): cpu = 00:00:04 ; elapsed = 00:00:42 . Memory (MB): peak = 198.547 ; gain = 106.207
+INFO: [XFORM 203-102] Partitioning array 'cos.V' (../src/mixcarr.cpp:138) automatically.
+INFO: [XFORM 203-401] Performing if-conversion on hyperblock from (../src/mixcarr.cpp:200:36) to (../src/mixcarr.cpp:200:23) in function 'mixcarr'... converting 30 basic blocks.
+INFO: [HLS 200-111] Finished Pre-synthesis Time (s): cpu = 00:00:05 ; elapsed = 00:00:43 . Memory (MB): peak = 218.281 ; gain = 125.941
+WARNING: [XFORM 203-542] Cannot flatten a loop nest 'Loop-1' (../src/mixcarr.cpp:186:8) in function 'mixcarr' : 
 
-****** Vivado v2019.2 (64-bit)
-  **** SW Build 2708876 on Wed Nov  6 21:40:23 MST 2019
-  **** IP Build 2700528 on Thu Nov  7 00:09:20 MST 2019
-    ** Copyright 1986-2019 Xilinx, Inc. All Rights Reserved.
-
-source run_ippack.tcl -notrace
-INFO: [IP_Flow 19-234] Refreshing IP repositories
-INFO: [IP_Flow 19-1704] No user IP repositories specified
-INFO: [IP_Flow 19-2313] Loaded Vivado IP repository 'C:/opt/Xilinx/Vivado/2019.2/data/ip'.
-INFO: [Common 17-206] Exiting Vivado at Sun Feb 13 15:05:21 2022...
+the outer loop is not a perfect loop because there is nontrivial logic in the loop latch.
+INFO: [HLS 200-111] Finished Architecture Synthesis Time (s): cpu = 00:00:05 ; elapsed = 00:00:44 . Memory (MB): peak = 221.188 ; gain = 128.848
+INFO: [HLS 200-10] Starting hardware synthesis ...
+INFO: [HLS 200-10] Synthesizing 'mixcarr' ...
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [HLS 200-42] -- Implementing module 'mixcarr' 
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [SCHED 204-11] Starting scheduling ...
+INFO: [SCHED 204-61] Pipelining loop 'Loop 1.1'.
+INFO: [SCHED 204-61] Pipelining result : Target II = 1, Final II = 1, Depth = 5.
+INFO: [SCHED 204-11] Finished scheduling.
+INFO: [HLS 200-111]  Elapsed time: 44.341 seconds; current allocated memory: 157.993 MB.
+INFO: [BIND 205-100] Starting micro-architecture generation ...
+INFO: [BIND 205-101] Performing variable lifetime analysis.
+INFO: [BIND 205-101] Exploring resource sharing.
+INFO: [BIND 205-101] Binding ...
+INFO: [BIND 205-100] Finished micro-architecture generation.
+INFO: [HLS 200-111]  Elapsed time: 0.599 seconds; current allocated memory: 159.563 MB.
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [HLS 200-10] -- Generating RTL for module 'mixcarr' 
+INFO: [HLS 200-10] ----------------------------------------------------------------
+INFO: [RTGEN 206-500] Setting interface mode on port 'mixcarr/strm_in_V_data_V' to 'axis' (register, both mode).
+INFO: [RTGEN 206-500] Setting interface mode on port 'mixcarr/strm_in_V_keep_V' to 'axis' (register, both mode).
+INFO: [RTGEN 206-500] Setting interface mode on port 'mixcarr/strm_in_V_strb_V' to 'axis' (register, both mode).
+INFO: [RTGEN 206-500] Setting interface mode on port 'mixcarr/strm_in_V_last_V' to 'axis' (register, both mode).
+INFO: [RTGEN 206-500] Setting interface mode on port 'mixcarr/strm_out_V_data_V' to 'axis' (register, both mode).
+INFO: [RTGEN 206-500] Setting interface mode on port 'mixcarr/strm_out_V_keep_V' to 'axis' (register, both mode).
+INFO: [RTGEN 206-500] Setting interface mode on port 'mixcarr/strm_out_V_strb_V' to 'axis' (register, both mode).
+INFO: [RTGEN 206-500] Setting interface mode on port 'mixcarr/strm_out_V_last_V' to 'axis' (register, both mode).
+INFO: [RTGEN 206-500] Setting interface mode on function 'mixcarr' to 'ap_ctrl_none'.
+INFO: [RTGEN 206-100] Finished creating RTL model for 'mixcarr'.
+INFO: [HLS 200-111]  Elapsed time: 1.168 seconds; current allocated memory: 162.558 MB.
+INFO: [HLS 200-790] **** Loop Constraint Status: All loop constraints were satisfied.
+INFO: [HLS 200-789] **** Estimated Fmax: 114.62 MHz
+INFO: [RTMG 210-279] Implementing memory 'mixcarr_cost_V_rom' using distributed ROMs.
+INFO: [HLS 200-111] Finished generating all RTL models Time (s): cpu = 00:00:10 ; elapsed = 00:00:51 . Memory (MB): peak = 253.230 ; gain = 160.891
+INFO: [VHDL 208-304] Generating VHDL RTL for mixcarr.
+INFO: [VLOG 209-307] Generating Verilog RTL for mixcarr.
+INFO: [HLS 200-112] Total elapsed time: 51.354 seconds; peak allocated memory: 162.558 MB.
